@@ -13,6 +13,8 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #333; color: white; }
+        .status-msg { text-align: center; padding: 20px; color: #666; }
+        .error-msg { text-align: center; padding: 20px; color: #c0392b; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -30,11 +32,14 @@
                 <th>السنة</th>
                 <th>اللمبة (Low)</th>
                 <th>اللمبة (High)</th>
+                <th>لمبة الضباب</th>
                 <th>الماسحات (السائق)</th>
+                <th>الماسحات (الراكب)</th>
+                <th>مقاس الشاشة</th>
             </tr>
         </thead>
         <tbody id="tableBody">
-            <!-- سيتم إضافة البيانات هنا -->
+            <tr><td colspan="9" class="status-msg">جاري تحميل البيانات...</td></tr>
         </tbody>
     </table>
 
@@ -43,28 +48,62 @@
 
         // جلب البيانات من ملف CSV
         fetch('data.csv')
-            .then(response => response.text())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('تعذر العثور على ملف data.csv (كود: ' + response.status + ')');
+                }
+                return response.text();
+            })
             .then(csvText => {
                 Papa.parse(csvText, {
                     header: true,
                     skipEmptyLines: true,
                     complete: function(results) {
-                        fullData = results.data;
+                        // تجاهل أي أعمدة بدون اسم (رأس فاضي) قد تكون بآخر الملف
+                        fullData = results.data.map(cleanRow);
                         renderTable(fullData);
+                    },
+                    error: function(err) {
+                        showError('حدث خطأ أثناء تحليل ملف CSV: ' + err.message);
                     }
                 });
+            })
+            .catch(err => {
+                showError(err.message);
             });
+
+        function cleanRow(row) {
+            const cleaned = {};
+            for (const key in row) {
+                if (key && key.trim() !== '') {
+                    cleaned[key] = (row[key] || '').toString().trim();
+                }
+            }
+            return cleaned;
+        }
+
+        function showError(message) {
+            const body = document.getElementById('tableBody');
+            body.innerHTML = `<tr><td colspan="9" class="error-msg">⚠️ ${message}</td></tr>`;
+        }
 
         function renderTable(data) {
             const body = document.getElementById('tableBody');
+            if (!data || data.length === 0) {
+                body.innerHTML = `<tr><td colspan="9" class="status-msg">لا توجد نتائج مطابقة</td></tr>`;
+                return;
+            }
             body.innerHTML = data.map(item => `
                 <tr>
-                    <td>${item.Make}</td>
-                    <td>${item.Model}</td>
-                    <td>${item.Year_Start} - ${item.Year_End}</td>
-                    <td>${item.Low_Beam_Bulb}</td>
-                    <td>${item.High_Beam_Bulb}</td>
-                    <td>${item.Wiper_Driver_Inch}"</td>
+                    <td>${item.Make || ''}</td>
+                    <td>${item.Model || ''}</td>
+                    <td>${item.Year_Start || ''} - ${item.Year_End || ''}</td>
+                    <td>${item.Low_Beam_Bulb || ''}</td>
+                    <td>${item.High_Beam_Bulb || ''}</td>
+                    <td>${item.Fog_Light_Bulb || ''}</td>
+                    <td>${item.Wiper_Driver_Inch ? item.Wiper_Driver_Inch + '"' : ''}</td>
+                    <td>${item.Wiper_Passenger_Inch ? item.Wiper_Passenger_Inch + '"' : ''}</td>
+                    <td>${item.Screen_Frame_Type_Size || ''}</td>
                 </tr>
             `).join('');
         }
@@ -72,8 +111,8 @@
         function filterData() {
             const query = document.getElementById('searchInput').value.toLowerCase();
             const filtered = fullData.filter(item => 
-                item.Model.toLowerCase().includes(query) || 
-                item.Make.toLowerCase().includes(query)
+                (item.Model || '').toLowerCase().includes(query) || 
+                (item.Make || '').toLowerCase().includes(query)
             );
             renderTable(filtered);
         }
