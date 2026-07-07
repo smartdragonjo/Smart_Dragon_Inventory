@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Dragon Inventory - محرك البحث</title>
+    <!-- استدعاء مكتبة PapaParse من CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        body { font-family: Tahoma, sans-serif; padding: 20px; background-color: #f4f4f9; }
+        .search-box { margin-bottom: 20px; text-align: center; }
+        input { padding: 10px; width: 80%; max-width: 400px; border: 2px solid #333; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background-color: #333; color: white; }
+    </style>
+</head>
+<body>
+
+    <h1 style="text-align: center;">محرك بحث "التنين الذكي" لقطع الغيار</h1>
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="ابحث باسم السيارة أو الموديل (مثال: Corolla)..." onkeyup="filterData()">
+    </div>
+
+    <table id="inventoryTable">
+        <thead>
+            <tr>
+                <th>الماركة</th>
+                <th>الموديل</th>
+                <th>السنة</th>
+                <th>اللمبة (Low)</th>
+                <th>اللمبة (High)</th>
+                <th>الماسحات (السائق)</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <!-- سيتم إضافة البيانات هنا -->
+        </tbody>
+    </table>
+
+    <script>
+        let fullData = [];
+
+        // جلب البيانات من ملف CSV
+        fetch('data.csv')
+            .then(response => response.text())
+            .then(csvText => {
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        fullData = results.data;
+                        renderTable(fullData);
+                    }
+                });
+            });
+
+        function renderTable(data) {
+            const body = document.getElementById('tableBody');
+            body.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.Make}</td>
+                    <td>${item.Model}</td>
+                    <td>${item.Year_Start} - ${item.Year_End}</td>
+                    <td>${item.Low_Beam_Bulb}</td>
+                    <td>${item.High_Beam_Bulb}</td>
+                    <td>${item.Wiper_Driver_Inch}"</td>
+                </tr>
+            `).join('');
+        }
+
+        function filterData() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = fullData.filter(item => 
+                item.Model.toLowerCase().includes(query) || 
+                item.Make.toLowerCase().includes(query)
+            );
+            renderTable(filtered);
+        }
+    </script>
+</body>
+</html>
