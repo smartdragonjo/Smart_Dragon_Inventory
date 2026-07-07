@@ -58,19 +58,32 @@
             const rawQuery = document.getElementById('searchInput').value.trim();
             if (rawQuery === "") { document.getElementById('results-container').innerHTML = ""; return; }
             
-            // تقسيم جملة البحث إلى مصفوفة كلمات
             const queryWords = rawQuery.split(/\s+/).map(word => normalize(word));
             const container = document.getElementById('results-container');
 
+            // محاولة استخراج أي رقم سنة من البحث
+            const yearMatch = rawQuery.match(/\d{4}/);
+            const searchYear = yearMatch ? parseInt(yearMatch[0]) : null;
+
             const filtered = fullData.filter(item => {
-                // تجميع بيانات السيارة في نص واحد للبحث الشامل
-                const itemData = normalize(`${item.Make} ${item.Model} ${item.Year_Start} ${item.Year_End} ${item.Arabic_Keywords || ""} ${item.Arabic_Make || ""}`);
+                const itemData = normalize(`${item.Make} ${item.Model} ${item.Arabic_Keywords || ""} ${item.Arabic_Make || ""}`);
                 
-                // التأكد من أن كل كلمة تم إدخالها موجودة في نص السيارة (الترجمة + البحث الفعلي)
-                return queryWords.every(word => {
+                // التحقق من توافق الكلمات (الاسم)
+                const nameMatches = queryWords.every(word => {
+                    if (word.match(/^\d{4}$/)) return true; // تجاهل السنة في التحقق النصي
                     const translatedWord = manualDict[word] || word;
                     return itemData.includes(word) || itemData.includes(translatedWord);
                 });
+
+                // التحقق من وقوع السنة ضمن المدى إذا وجدت
+                let yearMatches = true;
+                if (searchYear) {
+                    const startYear = parseInt(item.Year_Start);
+                    const endYear = parseInt(item.Year_End);
+                    yearMatches = (searchYear >= startYear && searchYear <= endYear);
+                }
+
+                return nameMatches && yearMatches;
             });
 
             container.innerHTML = filtered.map(item => `
@@ -82,7 +95,7 @@
                     <p><span class="info-label">ماسحات الراكب:</span> ${item.Wiper_Passenger_Inch}"</p>
                     <p><span class="info-label">الشاشة/الإطار:</span> ${item.Screen_Frame_Type_Size}</p>
                 </div>
-            `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة لهذه الكلمات.</p>';
+            `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة.</p>';
         }
     </script>
 </body>
