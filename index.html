@@ -10,9 +10,14 @@
         .logo { margin-top: 50px; width: 200px; }
         .tagline { color: #2e7d32; font-weight: bold; margin-bottom: 30px; font-size: 1.2rem; }
         .search-container { width: 100%; max-width: 600px; text-align: center; }
-        input { padding: 15px; width: 100%; border: 1px solid #ccc; border-radius: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 16px; outline: none; }
+        input { padding: 15px; width: 100%; border: 1px solid #ccc; border-radius: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 16px; outline: none; margin-bottom: 15px; }
         
-        #results-container { width: 100%; max-width: 600px; margin-top: 30px; }
+        .filters { margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .filter-btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 20px; background: #2e7d32; color: white; font-weight: bold; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .filter-btn:hover { background: #1b5e20; }
+        .filter-btn.active { background: #1b5e20; transform: scale(1.05); outline: 2px solid #fff; outline-offset: 2px; }
+
+        #results-container { width: 100%; max-width: 600px; margin-top: 10px; }
         .card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-right: 5px solid #2e7d32; }
         .card h3 { margin: 0 0 10px 0; color: #333; }
         .card p { margin: 5px 0; color: #555; }
@@ -26,12 +31,19 @@
     
     <div class="search-container">
         <input type="text" id="searchInput" placeholder="ابحث (مثال: فورد فيوجن 2019)..." oninput="filterData()">
+        <div class="filters">
+            <button class="filter-btn" onclick="setFilter('all', this)">الكل</button>
+            <button class="filter-btn" onclick="setFilter('bulbs', this)">لمبات</button>
+            <button class="filter-btn" onclick="setFilter('screens', this)">شاشات</button>
+            <button class="filter-btn" onclick="setFilter('wipers', this)">مساحات زجاج</button>
+        </div>
     </div>
 
     <div id="results-container"></div>
 
     <script>
         let fullData = [];
+        let activeFilter = 'all';
 
         const manualDict = {
             "تويوتا": "toyota", "كورولا": "corolla", "كامري": "camry", "راف فور": "rav4",
@@ -54,46 +66,45 @@
                 });
             });
 
+        function setFilter(filter, btn) {
+            activeFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            filterData();
+        }
+
         function filterData() {
             const rawQuery = document.getElementById('searchInput').value.trim();
-            if (rawQuery === "") { document.getElementById('results-container').innerHTML = ""; return; }
+            const container = document.getElementById('results-container');
+            
+            if (rawQuery === "") { container.innerHTML = ""; return; }
             
             const queryWords = rawQuery.split(/\s+/).map(word => normalize(word));
-            const container = document.getElementById('results-container');
-
-            // محاولة استخراج أي رقم سنة من البحث
             const yearMatch = rawQuery.match(/\d{4}/);
             const searchYear = yearMatch ? parseInt(yearMatch[0]) : null;
 
             const filtered = fullData.filter(item => {
                 const itemData = normalize(`${item.Make} ${item.Model} ${item.Arabic_Keywords || ""} ${item.Arabic_Make || ""}`);
-                
-                // التحقق من توافق الكلمات (الاسم)
                 const nameMatches = queryWords.every(word => {
-                    if (word.match(/^\d{4}$/)) return true; // تجاهل السنة في التحقق النصي
+                    if (word.match(/^\d{4}$/)) return true;
                     const translatedWord = manualDict[word] || word;
                     return itemData.includes(word) || itemData.includes(translatedWord);
                 });
-
-                // التحقق من وقوع السنة ضمن المدى إذا وجدت
-                let yearMatches = true;
-                if (searchYear) {
-                    const startYear = parseInt(item.Year_Start);
-                    const endYear = parseInt(item.Year_End);
-                    yearMatches = (searchYear >= startYear && searchYear <= endYear);
-                }
-
+                let yearMatches = searchYear ? (searchYear >= parseInt(item.Year_Start) && searchYear <= parseInt(item.Year_End)) : true;
                 return nameMatches && yearMatches;
             });
 
             container.innerHTML = filtered.map(item => `
                 <div class="card">
                     <h3>${item.Make} ${item.Model} (${item.Year_Start} - ${item.Year_End})</h3>
-                    <p><span class="info-label">اللمبة (Low):</span> ${item.Low_Beam_Bulb}</p>
-                    <p><span class="info-label">اللمبة (High):</span> ${item.High_Beam_Bulb}</p>
-                    <p><span class="info-label">ماسحات السائق:</span> ${item.Wiper_Driver_Inch}"</p>
-                    <p><span class="info-label">ماسحات الراكب:</span> ${item.Wiper_Passenger_Inch}"</p>
-                    <p><span class="info-label">الشاشة/الإطار:</span> ${item.Screen_Frame_Type_Size}</p>
+                    ${(activeFilter === 'all' || activeFilter === 'bulbs') ? `
+                        <p><span class="info-label">اللمبة (Low):</span> ${item.Low_Beam_Bulb}</p>
+                        <p><span class="info-label">اللمبة (High):</span> ${item.High_Beam_Bulb}</p>` : ''}
+                    ${(activeFilter === 'all' || activeFilter === 'wipers') ? `
+                        <p><span class="info-label">ماسحات السائق:</span> ${item.Wiper_Driver_Inch}"</p>
+                        <p><span class="info-label">ماسحات الراكب:</span> ${item.Wiper_Passenger_Inch}"</p>` : ''}
+                    ${(activeFilter === 'all' || activeFilter === 'screens') ? `
+                        <p><span class="info-label">الشاشة/الإطار:</span> ${item.Screen_Frame_Type_Size}</p>` : ''}
                 </div>
             `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة.</p>';
         }
