@@ -50,9 +50,15 @@
             "نيسان": "nissan", "فورد": "ford", "فيوجن": "fusion", "هيونداي": "hyundai", "كيا": "kia", "تسلا": "tesla"
         };
 
+        // تحويل الأرقام الهندية إلى عربية
+        function toArabicNumbers(str) {
+            const id = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+            return str.replace(/[۰-۹]/g, function(w){ return id.indexOf(w); });
+        }
+
         function normalize(text) {
             if (!text) return "";
-            return text.toString().toLowerCase()
+            return toArabicNumbers(text.toString().toLowerCase())
                 .replace(/(أ|إ|آ)/g, 'ا').replace(/(ة)/g, 'ه').replace(/(ى)/g, 'ي');
         }
 
@@ -79,8 +85,9 @@
             
             if (rawQuery === "") { container.innerHTML = ""; return; }
             
-            const queryWords = rawQuery.split(/\s+/).map(word => normalize(word));
-            const yearMatch = rawQuery.match(/\d{4}/);
+            const normalizedRawQuery = normalize(rawQuery);
+            const queryWords = normalizedRawQuery.split(/\s+/);
+            const yearMatch = normalizedRawQuery.match(/\d{4}/);
             const searchYear = yearMatch ? parseInt(yearMatch[0]) : null;
 
             const filtered = fullData.filter(item => {
