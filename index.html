@@ -25,7 +25,7 @@
     <div class="tagline">محرك بحث التنين الذكي عن قطع الغيار</div>
     
     <div class="search-container">
-        <input type="text" id="searchInput" placeholder="ابحث باسم السيارة أو الموديل..." oninput="filterData()">
+        <input type="text" id="searchInput" placeholder="ابحث باسم الماركة أو الموديل..." oninput="filterData()">
     </div>
 
     <div id="results-container"></div>
@@ -33,10 +33,9 @@
     <script>
         let fullData = [];
 
-        // الطريقة الأولى: قاموس مدمج للترجمة السريعة
         const manualDict = {
             "تويوتا": "toyota", "كورولا": "corolla", "كامري": "camry", "راف فور": "rav4",
-            "نيسان": "nissan", "فورد": "ford", "فيوجن": "fusion", "هيونداي": "hyundai", "كيا": "kia"
+            "نيسان": "nissan", "فورد": "ford", "فيوجن": "fusion", "هيونداي": "hyundai", "كيا": "kia", "تسلا": "tesla"
         };
 
         function normalize(text) {
@@ -62,20 +61,20 @@
             
             if (query === "") { container.innerHTML = ""; return; }
 
-            // التحقق من وجود الكلمة في القاموس المدمج
             const translatedQuery = manualDict[query] || query;
 
             const filtered = fullData.filter(item => {
                 const model = normalize(item.Model || "");
                 const make = normalize(item.Make || "");
                 const arKeywords = normalize(item.Arabic_Keywords || "");
+                const arMake = normalize(item.Arabic_Make || ""); // العمود الجديد
                 
-                // البحث في ثلاثة مسارات: الاسم الإنجليزي، القاموس المدمج، وعمود الـ CSV العربي
                 return model.includes(translatedQuery) || 
                        make.includes(translatedQuery) || 
                        model.includes(query) || 
                        make.includes(query) || 
-                       arKeywords.includes(query);
+                       arKeywords.includes(query) ||
+                       arMake.includes(query); // إضافة البحث في العمود الجديد
             });
 
             container.innerHTML = filtered.map(item => `
