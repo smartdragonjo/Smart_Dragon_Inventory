@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Dragon Inventory - محرك البحث</title>
-    <!-- استدعاء مكتبة PapaParse من CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         body { font-family: Tahoma, sans-serif; padding: 20px; background-color: #f4f4f9; }
@@ -13,16 +12,18 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #333; color: white; }
-        .status-msg { text-align: center; padding: 20px; color: #666; }
-        .error-msg { text-align: center; padding: 20px; color: #c0392b; font-weight: bold; }
+        #statusMsg { text-align: center; color: #b00020; font-weight: bold; margin-top: 10px; }
+        #resultCount { text-align: center; color: #666; margin-top: 8px; font-size: 14px; }
     </style>
 </head>
 <body>
 
     <h1 style="text-align: center;">محرك بحث "التنين الذكي" لقطع الغيار</h1>
     <div class="search-box">
-        <input type="text" id="searchInput" placeholder="ابحث باسم السيارة أو الموديل (مثال: Corolla)..." onkeyup="filterData()">
+        <input type="text" id="searchInput" placeholder="ابحث باسم السيارة أو الموديل..." onkeyup="filterData()">
     </div>
+    <div id="statusMsg"></div>
+    <div id="resultCount"></div>
 
     <table id="inventoryTable">
         <thead>
@@ -32,87 +33,100 @@
                 <th>السنة</th>
                 <th>اللمبة (Low)</th>
                 <th>اللمبة (High)</th>
-                <th>لمبة الضباب</th>
                 <th>الماسحات (السائق)</th>
-                <th>الماسحات (الراكب)</th>
-                <th>مقاس الشاشة</th>
             </tr>
         </thead>
         <tbody id="tableBody">
-            <tr><td colspan="9" class="status-msg">جاري تحميل البيانات...</td></tr>
+            <!-- سيتم إضافة البيانات هنا -->
         </tbody>
     </table>
 
     <script>
         let fullData = [];
 
-        // جلب البيانات من ملف CSV
-        fetch('data.csv')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('تعذر العثور على ملف data.csv (كود: ' + response.status + ')');
-                }
-                return response.text();
-            })
-            .then(csvText => {
-                Papa.parse(csvText, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: function(results) {
-                        // تجاهل أي أعمدة بدون اسم (رأس فاضي) قد تكون بآخر الملف
-                        fullData = results.data.map(cleanRow);
-                        renderTable(fullData);
-                    },
-                    error: function(err) {
-                        showError('حدث خطأ أثناء تحليل ملف CSV: ' + err.message);
-                    }
-                });
-            })
-            .catch(err => {
-                showError(err.message);
-            });
+        function normalizeArabic(text) {
+            if (!text) return "";
+            return text.toString()
+                .trim()
+                .replace(/(أ|إ|آ)/g, 'ا')
+                .replace(/(ة)/g, 'ه')
+                .replace(/(ى)/g, 'ي')
+                .toLowerCase();
+        }
 
-        function cleanRow(row) {
-            const cleaned = {};
-            for (const key in row) {
-                if (key && key.trim() !== '') {
-                    cleaned[key] = (row[key] || '').toString().trim();
+        // يحوّل أي قيمة إلى نص آمن للعرض، ويعالج القيم الفارغة/undefined
+        function safeText(value) {
+            if (value === undefined || value === null) return "";
+            return value.toString().trim();
+        }
+
+        function setStatus(msg) {
+            document.getElementById('statusMsg').textContent = msg;
+        }
+
+        function setResultCount(n) {
+            document.getElementById('resultCount').textContent = n > 0 ? `عدد النتائج: ${n}` : "";
+        }
+
+        // استخدام Papa.parse مباشرة على الرابط (download:true) بدل fetch يدوي،
+        // مع تفعيل معالجة BOM تلقائياً لتفادي مشكلة أسماء الأعمدة العربية/الإكسل
+        Papa.parse('data.csv', {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: header => header.replace(/^\uFEFF/, '').trim(),
+            complete: function(results) {
+                if (results.errors && results.errors.length > 0) {
+                    console.warn('تحذيرات أثناء قراءة الملف:', results.errors);
                 }
+                fullData = results.data;
+                if (fullData.length === 0) {
+                    setStatus('لم يتم العثور على بيانات في الملف.');
+                } else {
+                    setStatus('');
+                }
+                renderTable(fullData);
+            },
+            error: function(err) {
+                console.error('خطأ في تحميل data.csv:', err);
+                setStatus('تعذّر تحميل ملف البيانات (data.csv). تأكد من تشغيل الصفحة عبر سيرفر محلي وليس بفتح الملف مباشرة.');
             }
-            return cleaned;
-        }
+        });
 
-        function showError(message) {
-            const body = document.getElementById('tableBody');
-            body.innerHTML = `<tr><td colspan="9" class="error-msg">⚠️ ${message}</td></tr>`;
-        }
-
+        // بناء الجدول باستخدام DOM API بدل innerHTML لمنع ثغرات XSS
         function renderTable(data) {
             const body = document.getElementById('tableBody');
-            if (!data || data.length === 0) {
-                body.innerHTML = `<tr><td colspan="9" class="status-msg">لا توجد نتائج مطابقة</td></tr>`;
-                return;
-            }
-            body.innerHTML = data.map(item => `
-                <tr>
-                    <td>${item.Make || ''}</td>
-                    <td>${item.Model || ''}</td>
-                    <td>${item.Year_Start || ''} - ${item.Year_End || ''}</td>
-                    <td>${item.Low_Beam_Bulb || ''}</td>
-                    <td>${item.High_Beam_Bulb || ''}</td>
-                    <td>${item.Fog_Light_Bulb || ''}</td>
-                    <td>${item.Wiper_Driver_Inch ? item.Wiper_Driver_Inch + '"' : ''}</td>
-                    <td>${item.Wiper_Passenger_Inch ? item.Wiper_Passenger_Inch + '"' : ''}</td>
-                    <td>${item.Screen_Frame_Type_Size || ''}</td>
-                </tr>
-            `).join('');
+            body.textContent = ""; // تفريغ الجدول بأمان
+
+            const fragment = document.createDocumentFragment();
+
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                const values = [
+                    safeText(item.Make),
+                    safeText(item.Model),
+                    `${safeText(item.Year_Start)} - ${safeText(item.Year_End)}`,
+                    safeText(item.Low_Beam_Bulb),
+                    safeText(item.High_Beam_Bulb),
+                    safeText(item.Wiper_Driver_Inch)
+                ];
+                values.forEach(val => {
+                    const cell = document.createElement('td');
+                    cell.textContent = val; // نص آمن 100%، لا يُفسَّر كـ HTML
+                    row.appendChild(cell);
+                });
+                fragment.appendChild(row);
+            });
+
+            body.appendChild(fragment);
+            setResultCount(data.length);
         }
 
         function filterData() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            const filtered = fullData.filter(item => 
-                (item.Model || '').toLowerCase().includes(query) || 
-                (item.Make || '').toLowerCase().includes(query)
+            const query = normalizeArabic(document.getElementById('searchInput').value);
+            const filtered = fullData.filter(item =>
+                normalizeArabic(item.Model).includes(query) ||
+                normalizeArabic(item.Make).includes(query)
             );
             renderTable(filtered);
         }
