@@ -3,111 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Dragon Inventory - محرك البحث</title>
+    <title>محرك بحث التنين الذكي</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { font-family: Tahoma, sans-serif; padding: 20px; background-color: #f4f4f9; }
-        .search-box { margin-bottom: 20px; text-align: center; }
-        input { padding: 15px; width: 80%; max-width: 400px; border: 2px solid #333; border-radius: 10px; font-size: 18px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 10px; overflow: hidden; }
-        th, td { border: 1px solid #ddd; padding: 15px; text-align: center; }
-        th { background-color: #333; color: white; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; background-color: #f9f9f9; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .logo { margin-top: 50px; margin-bottom: 30px; width: 200px; }
+        .search-container { width: 100%; max-width: 600px; text-align: center; }
+        input { padding: 15px; width: 100%; border: 1px solid #ccc; border-radius: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 16px; outline: none; }
+        input:focus { border-color: #333; }
+        
+        #results-container { width: 100%; max-width: 600px; margin-top: 30px; }
+        .card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-right: 5px solid #333; }
+        .card h3 { margin: 0 0 10px 0; color: #333; }
+        .card p { margin: 5px 0; color: #555; }
+        .info-label { font-weight: bold; color: #000; }
     </style>
 </head>
 <body>
 
-    <h1 style="text-align: center;">محرك بحث "التنين الذكي" لقطع الغيار</h1>
-    <div class="search-box">
-        <input type="text" id="searchInput" placeholder="ابحث باسم السيارة بالعربي أو الإنجليزي..." onkeyup="filterData()">
+    <img src="logo.jpeg" alt="لوغو التنين الذكي" class="logo" onerror="this.style.display='none'">
+    
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="ابحث عن سيارتك (مثال: كورولا، تويوتا، فيوجن)..." oninput="filterData()">
     </div>
 
-    <table id="inventoryTable">
-        <thead>
-            <tr>
-                <th>الماركة</th>
-                <th>الموديل</th>
-                <th>السنة</th>
-                <th>اللمبة (Low)</th>
-                <th>اللمبة (High)</th>
-                <th>الماسحات (السائق)</th>
-            </tr>
-        </thead>
-        <tbody id="tableBody">
-            <!-- سيتم عرض البيانات هنا بعد البحث فقط -->
-        </tbody>
-    </table>
+    <div id="results-container"></div>
 
     <script>
         let fullData = [];
 
-        // قاموس ترجمة (يمكنك إضافة أي موديل هنا)
-        const translationDict = {
+        // قاموس للبحث العربي
+        const synonyms = {
             "تويوتا": "toyota", "كورولا": "corolla", "كامري": "camry", "راف فور": "rav4",
-            "نيسان": "nissan", "ليف": "leaf", "فولكس فاجن": "volkswagen", "بي ام دبليو": "bmw",
-            "مرسيدس": "mercedes", "فيوجن": "fusion", "فورد": "ford"
+            "نيسان": "nissan", "فورد": "ford", "فيوجن": "fusion", "هيونداي": "hyundai", "كيا": "kia"
         };
 
-        function normalizeArabic(text) {
+        function normalize(text) {
             if (!text) return "";
-            return text.toString()
-                .replace(/(أ|إ|آ)/g, 'ا')
-                .replace(/(ة)/g, 'ه')
-                .replace(/(ى)/g, 'ي')
-                .toLowerCase();
+            return text.toString().toLowerCase()
+                .replace(/(أ|إ|آ)/g, 'ا').replace(/(ة)/g, 'ه').replace(/(ى)/g, 'ي');
         }
 
-        // جلب البيانات
         fetch('data.csv')
             .then(response => response.text())
             .then(csvText => {
                 Papa.parse(csvText, {
                     header: true,
                     skipEmptyLines: true,
-                    complete: function(results) {
-                        fullData = results.data;
-                        console.log("تم تحميل البيانات بنجاح:", fullData);
-                    }
+                    complete: (results) => { fullData = results.data; }
                 });
             });
 
-        function renderTable(data) {
-            const body = document.getElementById('tableBody');
-            if (data.length === 0) {
-                body.innerHTML = '<tr><td colspan="6">لم يتم العثور على نتائج.</td></tr>';
-                return;
-            }
-            body.innerHTML = data.map(item => `
-                <tr>
-                    <td>${item.Make || '-'}</td>
-                    <td>${item.Model || '-'}</td>
-                    <td>${item.Year_Start || '-'} - ${item.Year_End || '-'}</td>
-                    <td>${item.Low_Beam_Bulb || '-'}</td>
-                    <td>${item.High_Beam_Bulb || '-'}</td>
-                    <td>${item.Wiper_Driver_Inch || '-'}</td>
-                </tr>
-            `).join('');
-        }
-
         function filterData() {
-            const rawQuery = document.getElementById('searchInput').value.trim();
-            const body = document.getElementById('tableBody');
+            const query = normalize(document.getElementById('searchInput').value.trim());
+            const container = document.getElementById('results-container');
             
-            if (rawQuery === "") {
-                body.innerHTML = ""; // إخفاء الجدول إذا لم يتم البحث
-                return;
-            }
+            if (query === "") { container.innerHTML = ""; return; }
 
-            const query = normalizeArabic(rawQuery);
-            const translatedQuery = translationDict[query] || query;
-            
-            const filtered = fullData.filter(item => 
-                (item.Model && normalizeArabic(item.Model).includes(translatedQuery)) || 
-                (item.Make && normalizeArabic(item.Make).includes(translatedQuery)) ||
-                (item.Model && item.Model.toLowerCase().includes(translatedQuery)) || 
-                (item.Make && item.Make.toLowerCase().includes(translatedQuery))
-            );
-            
-            renderTable(filtered);
+            const filtered = fullData.filter(item => {
+                const model = normalize(item.Model || "");
+                const make = normalize(item.Make || "");
+                const syn = synonyms[query] || query;
+                return model.includes(syn) || make.includes(syn) || model.includes(query) || make.includes(query);
+            });
+
+            container.innerHTML = filtered.map(item => `
+                <div class="card">
+                    <h3>${item.Make} ${item.Model} (${item.Year_Start} - ${item.Year_End})</h3>
+                    <p><span class="info-label">اللمبة (Low):</span> ${item.Low_Beam_Bulb}</p>
+                    <p><span class="info-label">اللمبة (High):</span> ${item.High_Beam_Bulb}</p>
+                    <p><span class="info-label">ماسحات السائق:</span> ${item.Wiper_Driver_Inch}"</p>
+                    <p><span class="info-label">ماسحات الراكب:</span> ${item.Wiper_Passenger_Inch}"</p>
+                    <p><span class="info-label">الشاشة/الإطار:</span> ${item.Screen_Frame_Type_Size}</p>
+                </div>
+            `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة.</p>';
         }
     </script>
 </body>
