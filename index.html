@@ -25,7 +25,7 @@
     <div class="tagline">محرك بحث التنين الذكي عن قطع الغيار</div>
     
     <div class="search-container">
-        <input type="text" id="searchInput" placeholder="ابحث باسم الماركة أو الموديل..." oninput="filterData()">
+        <input type="text" id="searchInput" placeholder="ابحث (مثال: فورد فيوجن 2019)..." oninput="filterData()">
     </div>
 
     <div id="results-container"></div>
@@ -56,25 +56,21 @@
 
         function filterData() {
             const rawQuery = document.getElementById('searchInput').value.trim();
-            const query = normalize(rawQuery);
-            const container = document.getElementById('results-container');
+            if (rawQuery === "") { document.getElementById('results-container').innerHTML = ""; return; }
             
-            if (query === "") { container.innerHTML = ""; return; }
-
-            const translatedQuery = manualDict[query] || query;
+            // تقسيم جملة البحث إلى مصفوفة كلمات
+            const queryWords = rawQuery.split(/\s+/).map(word => normalize(word));
+            const container = document.getElementById('results-container');
 
             const filtered = fullData.filter(item => {
-                const model = normalize(item.Model || "");
-                const make = normalize(item.Make || "");
-                const arKeywords = normalize(item.Arabic_Keywords || "");
-                const arMake = normalize(item.Arabic_Make || ""); // العمود الجديد
+                // تجميع بيانات السيارة في نص واحد للبحث الشامل
+                const itemData = normalize(`${item.Make} ${item.Model} ${item.Year_Start} ${item.Year_End} ${item.Arabic_Keywords || ""} ${item.Arabic_Make || ""}`);
                 
-                return model.includes(translatedQuery) || 
-                       make.includes(translatedQuery) || 
-                       model.includes(query) || 
-                       make.includes(query) || 
-                       arKeywords.includes(query) ||
-                       arMake.includes(query); // إضافة البحث في العمود الجديد
+                // التأكد من أن كل كلمة تم إدخالها موجودة في نص السيارة (الترجمة + البحث الفعلي)
+                return queryWords.every(word => {
+                    const translatedWord = manualDict[word] || word;
+                    return itemData.includes(word) || itemData.includes(translatedWord);
+                });
             });
 
             container.innerHTML = filtered.map(item => `
@@ -86,7 +82,7 @@
                     <p><span class="info-label">ماسحات الراكب:</span> ${item.Wiper_Passenger_Inch}"</p>
                     <p><span class="info-label">الشاشة/الإطار:</span> ${item.Screen_Frame_Type_Size}</p>
                 </div>
-            `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة.</p>';
+            `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة لهذه الكلمات.</p>';
         }
     </script>
 </body>
