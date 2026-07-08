@@ -15,27 +15,25 @@
         .filters { margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
         .filter-btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 20px; background: #2e7d32; color: white; font-weight: bold; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .filter-btn:hover { background: #1b5e20; }
-        .filter-btn.active { background: #1b5e20; transform: scale(1.05); outline: 2px solid #fff; outline-offset: 2px; }
+        .filter-btn.active { background: #1b5e20; transform: scale(1.05); }
 
         #results-container { width: 100%; max-width: 600px; margin-top: 10px; }
         .card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-right: 5px solid #2e7d32; }
-        .card h3 { margin: 0 0 10px 0; color: #333; }
-        .card p { margin: 5px 0; color: #555; }
         .info-label { font-weight: bold; color: #000; }
     </style>
 </head>
 <body>
 
-    <img src="logo.png" alt="لوغو التنين الذكي" class="logo" onerror="this.style.display='none'">
+    <img src="logo.png" alt="لوغو التنين الذكي" class="logo" onerror="this.src='https://via.placeholder.com/200'">
     <div class="tagline">محرك بحث التنين الذكي عن قطع الغيار</div>
     
     <div class="search-container">
-        <input type="text" id="searchInput" placeholder="ابحث (مثال: فورد فيوجن 2019)..." oninput="filterData()">
+        <input type="text" id="searchInput" placeholder="ابحث باسم السيارة أو الموديل..." oninput="filterData()">
         <div class="filters">
-            <button class="filter-btn" onclick="setFilter('all', this)">الكل</button>
+            <button class="filter-btn active" onclick="setFilter('all', this)">الكل</button>
             <button class="filter-btn" onclick="setFilter('bulbs', this)">لمبات</button>
             <button class="filter-btn" onclick="setFilter('screens', this)">شاشات</button>
-            <button class="filter-btn" onclick="setFilter('wipers', this)">مساحات زجاج</button>
+            <button class="filter-btn" onclick="setFilter('wipers', this)">مساحات</button>
         </div>
     </div>
 
@@ -45,21 +43,20 @@
         let fullData = [];
         let activeFilter = 'all';
 
-        const manualDict = {
-            "تويوتا": "toyota", "كورولا": "corolla", "كامري": "camry", "راف فور": "rav4",
-            "نيسان": "nissan", "فورد": "ford", "فيوجن": "fusion", "هيونداي": "hyundai", "كيا": "kia", "تسلا": "tesla"
-        };
-
-        // تحويل الأرقام الهندية إلى عربية
+        // تحويل أرقام Unicode الهندية إلى عربية
         function toArabicNumbers(str) {
-            const id = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
-            return str.replace(/[۰-۹]/g, function(w){ return id.indexOf(w); });
+            return str.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
+                      .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
         }
 
         function normalize(text) {
             if (!text) return "";
-            return toArabicNumbers(text.toString().toLowerCase())
-                .replace(/(أ|إ|آ)/g, 'ا').replace(/(ة)/g, 'ه').replace(/(ى)/g, 'ي');
+            // أولاً نحول الأرقام، ثم نصغر النص، ثم نعالج الحروف العربية
+            let normalized = toArabicNumbers(text.toString().toLowerCase());
+            return normalized
+                .replace(/(أ|إ|آ)/g, 'ا')
+                .replace(/(ة)/g, 'ه')
+                .replace(/(ى)/g, 'ي');
         }
 
         fetch('data.csv')
@@ -68,7 +65,9 @@
                 Papa.parse(csvText, {
                     header: true,
                     skipEmptyLines: true,
-                    complete: (results) => { fullData = results.data; }
+                    complete: (results) => {
+                        fullData = results.data;
+                    }
                 });
             });
 
@@ -82,36 +81,25 @@
         function filterData() {
             const rawQuery = document.getElementById('searchInput').value.trim();
             const container = document.getElementById('results-container');
-            
             if (rawQuery === "") { container.innerHTML = ""; return; }
             
             const normalizedRawQuery = normalize(rawQuery);
             const queryWords = normalizedRawQuery.split(/\s+/);
-            const yearMatch = normalizedRawQuery.match(/\d{4}/);
-            const searchYear = yearMatch ? parseInt(yearMatch[0]) : null;
+            const searchYear = normalizedRawQuery.match(/\d{4}/) ? parseInt(normalizedRawQuery.match(/\d{4}/)[0]) : null;
 
             const filtered = fullData.filter(item => {
-                const itemData = normalize(`${item.Make} ${item.Model} ${item.Arabic_Keywords || ""} ${item.Arabic_Make || ""}`);
-                const nameMatches = queryWords.every(word => {
-                    if (word.match(/^\d{4}$/)) return true;
-                    const translatedWord = manualDict[word] || word;
-                    return itemData.includes(word) || itemData.includes(translatedWord);
-                });
-                let yearMatches = searchYear ? (searchYear >= parseInt(item.Year_Start) && searchYear <= parseInt(item.Year_End)) : true;
-                return nameMatches && yearMatches;
+                // تحويل قيم الـ CSV للبحث أيضاً
+                const itemData = normalize(Object.values(item).join(' '));
+                return queryWords.every(word => itemData.includes(word)) && 
+                       (searchYear ? (searchYear >= parseInt(item.Year_Start) && searchYear <= parseInt(item.Year_End)) : true);
             });
 
             container.innerHTML = filtered.map(item => `
                 <div class="card">
-                    <h3>${item.Make} ${item.Model} (${item.Year_Start} - ${item.Year_End})</h3>
-                    ${(activeFilter === 'all' || activeFilter === 'bulbs') ? `
-                        <p><span class="info-label">اللمبة (Low):</span> ${item.Low_Beam_Bulb}</p>
-                        <p><span class="info-label">اللمبة (High):</span> ${item.High_Beam_Bulb}</p>` : ''}
-                    ${(activeFilter === 'all' || activeFilter === 'wipers') ? `
-                        <p><span class="info-label">ماسحات السائق:</span> ${item.Wiper_Driver_Inch}"</p>
-                        <p><span class="info-label">ماسحات الراكب:</span> ${item.Wiper_Passenger_Inch}"</p>` : ''}
-                    ${(activeFilter === 'all' || activeFilter === 'screens') ? `
-                        <p><span class="info-label">الشاشة/الإطار:</span> ${item.Screen_Frame_Type_Size}</p>` : ''}
+                    <h3>${item.Make || ''} ${item.Model || ''} (${item.Year_Start || ''} - ${item.Year_End || ''})</h3>
+                    ${(activeFilter === 'all' || activeFilter === 'bulbs') ? `<p><span class="info-label">اللمبات:</span> ${item.Low_Beam_Bulb || 'لا يوجد'}</p>` : ''}
+                    ${(activeFilter === 'all' || activeFilter === 'wipers') ? `<p><span class="info-label">المساحات:</span> ${item.Wiper_Driver_Inch || 'N/A'} / ${item.Wiper_Passenger_Inch || 'N/A'}</p>` : ''}
+                    ${(activeFilter === 'all' || activeFilter === 'screens') ? `<p><span class="info-label">الشاشات:</span> ${item.Screen_Frame_Type_Size || 'لا يوجد'}</p>` : ''}
                 </div>
             `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة.</p>';
         }
