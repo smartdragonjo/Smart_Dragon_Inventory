@@ -28,7 +28,7 @@
     <div class="tagline">محرك بحث التنين الذكي عن قطع الغيار</div>
     
     <div class="search-container">
-        <input type="text" id="searchInput" placeholder="ابحث باسم السيارة أو الموديل..." oninput="filterData()">
+        <input type="text" id="searchInput" placeholder="ابحث (مثال: فيوجن 2019)..." oninput="filterData()">
         <div class="filters">
             <button class="filter-btn active" onclick="setFilter('all', this)">الكل</button>
             <button class="filter-btn" onclick="setFilter('bulbs', this)">لمبات</button>
@@ -43,7 +43,6 @@
         let fullData = [];
         let activeFilter = 'all';
 
-        // تحويل أرقام Unicode الهندية إلى عربية
         function toArabicNumbers(str) {
             return str.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
                       .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
@@ -51,12 +50,8 @@
 
         function normalize(text) {
             if (!text) return "";
-            // أولاً نحول الأرقام، ثم نصغر النص، ثم نعالج الحروف العربية
             let normalized = toArabicNumbers(text.toString().toLowerCase());
-            return normalized
-                .replace(/(أ|إ|آ)/g, 'ا')
-                .replace(/(ة)/g, 'ه')
-                .replace(/(ى)/g, 'ي');
+            return normalized.replace(/(أ|إ|آ)/g, 'ا').replace(/(ة)/g, 'ه').replace(/(ى)/g, 'ي');
         }
 
         fetch('data.csv')
@@ -65,9 +60,7 @@
                 Papa.parse(csvText, {
                     header: true,
                     skipEmptyLines: true,
-                    complete: (results) => {
-                        fullData = results.data;
-                    }
+                    complete: (results) => { fullData = results.data; }
                 });
             });
 
@@ -88,10 +81,23 @@
             const searchYear = normalizedRawQuery.match(/\d{4}/) ? parseInt(normalizedRawQuery.match(/\d{4}/)[0]) : null;
 
             const filtered = fullData.filter(item => {
-                // تحويل قيم الـ CSV للبحث أيضاً
                 const itemData = normalize(Object.values(item).join(' '));
-                return queryWords.every(word => itemData.includes(word)) && 
-                       (searchYear ? (searchYear >= parseInt(item.Year_Start) && searchYear <= parseInt(item.Year_End)) : true);
+                
+                // البحث في الكلمات (الاسم)
+                const nameMatches = queryWords.every(word => {
+                    if (word.match(/^\d{4}$/)) return true; // نتجاهل السنة هنا لأننا سنفحصها رياضياً
+                    return itemData.includes(word);
+                });
+
+                // التحقق من السنة ضمن المدى (Range)
+                let yearMatches = true;
+                if (searchYear) {
+                    const start = parseInt(item.Year_Start);
+                    const end = parseInt(item.Year_End);
+                    yearMatches = (searchYear >= start && searchYear <= end);
+                }
+
+                return nameMatches && yearMatches;
             });
 
             container.innerHTML = filtered.map(item => `
@@ -101,7 +107,7 @@
                     ${(activeFilter === 'all' || activeFilter === 'wipers') ? `<p><span class="info-label">المساحات:</span> ${item.Wiper_Driver_Inch || 'N/A'} / ${item.Wiper_Passenger_Inch || 'N/A'}</p>` : ''}
                     ${(activeFilter === 'all' || activeFilter === 'screens') ? `<p><span class="info-label">الشاشات:</span> ${item.Screen_Frame_Type_Size || 'لا يوجد'}</p>` : ''}
                 </div>
-            `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة.</p>';
+            `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة لهذه السنة والموديل.</p>';
         }
     </script>
 </body>
