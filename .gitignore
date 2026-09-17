@@ -1,0 +1,54 @@
+# =========================================================
+# Smart Dragon Inventory
+# Git Ignore
+# =========================================================
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Firebase / Google credentials
+service-account*.json
+firebase-admin*.json
+google-credentials*.json
+credentials*.json
+
+# Private keys / certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node / tooling
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editors
+.vscode/settings.json
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs / local exports
+logs/
+*.log
+
+# Local backups / exports
+backups/
+exports/
+
+# Temporary files
+*.tmp
+*.temp
