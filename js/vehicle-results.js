@@ -1,84 +1,60 @@
 /**
- * =========================================================
  * Smart Dragon Inventory
  * Vehicle Results Renderer
- * =========================================================
  *
- * SECURITY NOTE:
- *
- * Database values must never be inserted into the page
- * through raw HTML strings.
- *
- * This renderer intentionally uses DOM APIs and textContent.
+ * Database values are rendered using
+ * DOM APIs + textContent only.
  */
 
-
-/**
- * Get the result container.
- */
 function getResultsContainer() {
+
     return document.getElementById(
         "resultsContainer"
     );
 }
 
 
-/**
- * Remove all existing child elements safely.
- */
 function clearElement(element) {
 
     if (!element) {
         return;
     }
 
-
-    while (element.firstChild) {
-        element.removeChild(
-            element.firstChild
-        );
-    }
-
+    element.replaceChildren();
 }
 
 
-/**
- * Create an element with optional class name.
- */
 function createElement(
     tagName,
     className = ""
 ) {
 
     const element =
-        document.createElement(tagName);
-
+        document.createElement(
+            tagName
+        );
 
     if (className) {
-        element.className = className;
+        element.className =
+            className;
     }
-
 
     return element;
 }
 
 
-/**
- * Render empty state.
- */
 function renderEmptyState() {
 
     const container =
         getResultsContainer();
 
-
     if (!container) {
         return;
     }
 
-
-    clearElement(container);
-
+    clearElement(
+        container
+    );
 
     container.className =
         "results-placeholder";
@@ -90,7 +66,8 @@ function renderEmptyState() {
             "results-placeholder__icon"
         );
 
-    icon.textContent = "🚗";
+    icon.textContent =
+        "🚗";
 
 
     const title =
@@ -112,17 +89,59 @@ function renderEmptyState() {
         title,
         text
     );
-
 }
 
 
-/**
- * Render one fitment value.
- */
-function createFitmentRow(
-    label,
-    value
-) {
+function renderLoadingState() {
+
+    const container =
+        getResultsContainer();
+
+    if (!container) {
+        return;
+    }
+
+    clearElement(
+        container
+    );
+
+    container.className =
+        "results-placeholder results-placeholder--loading";
+
+
+    const icon =
+        createElement(
+            "div",
+            "results-placeholder__icon"
+        );
+
+    icon.textContent =
+        "◌";
+
+
+    const title =
+        createElement("h3");
+
+    title.textContent =
+        "جاري تحميل بيانات التوافق";
+
+
+    const text =
+        createElement("p");
+
+    text.textContent =
+        "يتم الآن تجهيز بيانات السيارة المختارة.";
+
+
+    container.append(
+        icon,
+        title,
+        text
+    );
+}
+
+
+function createFitmentRow(item) {
 
     const row =
         createElement(
@@ -138,7 +157,17 @@ function createFitmentRow(
         );
 
     labelElement.textContent =
-        String(label);
+        String(
+            item?.label ||
+            "بيان"
+        );
+
+
+    const valueWrapper =
+        createElement(
+            "div",
+            "fitment-row__value-wrap"
+        );
 
 
     const valueElement =
@@ -147,17 +176,59 @@ function createFitmentRow(
             "fitment-row__value"
         );
 
+
     valueElement.textContent =
-        value === null ||
-        value === undefined ||
-        value === ""
+        item?.value === null ||
+        item?.value === undefined ||
+        item?.value === ""
             ? "غير متوفر"
-            : String(value);
+            : String(
+                item.value
+            );
+
+
+    valueElement.dir =
+        item?.dir ||
+        "auto";
+
+
+    if (item?.tone) {
+
+        valueElement
+            .classList
+            .add(
+                `fitment-row__value--${item.tone}`
+            );
+    }
+
+
+    valueWrapper.appendChild(
+        valueElement
+    );
+
+
+    if (item?.hint) {
+
+        const hint =
+            createElement(
+                "small",
+                "fitment-row__hint"
+            );
+
+        hint.textContent =
+            String(
+                item.hint
+            );
+
+        valueWrapper.appendChild(
+            hint
+        );
+    }
 
 
     row.append(
         labelElement,
-        valueElement
+        valueWrapper
     );
 
 
@@ -165,22 +236,9 @@ function createFitmentRow(
 }
 
 
-/**
- * Render one dynamic category.
- *
- * Expected future structure:
- *
- * {
- *   name: "اللمبات",
- *   items: [
- *      {
- *          label: "الواطي",
- *          value: "H11"
- *      }
- *   ]
- * }
- */
-function createCategoryCard(category) {
+function createCategoryCard(
+    category
+) {
 
     const card =
         createElement(
@@ -200,7 +258,9 @@ function createCategoryCard(category) {
         "صنف";
 
 
-    card.appendChild(title);
+    card.appendChild(
+        title
+    );
 
 
     const list =
@@ -211,24 +271,28 @@ function createCategoryCard(category) {
 
 
     const items =
-        Array.isArray(category?.items)
+        Array.isArray(
+            category?.items
+        )
             ? category.items
             : [];
 
 
-    items.forEach((item) => {
+    items.forEach(
+        (item) => {
 
-        list.appendChild(
-            createFitmentRow(
-                item?.label || "بيان",
-                item?.value
-            )
-        );
+            list.appendChild(
+                createFitmentRow(
+                    item
+                )
+            );
+        }
+    );
 
-    });
 
-
-    if (items.length === 0) {
+    if (
+        items.length === 0
+    ) {
 
         const empty =
             createElement(
@@ -239,42 +303,65 @@ function createCategoryCard(category) {
         empty.textContent =
             "لا توجد بيانات ضمن هذا الصنف.";
 
-        list.appendChild(empty);
-
+        list.appendChild(
+            empty
+        );
     }
 
 
-    card.appendChild(list);
+    card.appendChild(
+        list
+    );
 
 
     return card;
 }
 
 
-/**
- * Main result renderer.
- *
- * Expected future structure:
- *
- * {
- *   vehicle: {
- *      make: "Toyota",
- *      model: "Corolla",
- *      year: 2019,
- *      yearStart: 2017,
- *      yearEnd: 2020
- *   },
- *
- *   categories: [
- *      ...
- *   ]
- * }
- */
-function renderVehicleResult(result) {
+function createNotice(
+    message,
+    blocking = false
+) {
+
+    const notice =
+        createElement(
+            "div",
+            "vehicle-result__notice"
+        );
+
+
+    if (blocking) {
+
+        notice.classList.add(
+            "vehicle-result__notice--blocking"
+        );
+    }
+
+
+    const text =
+        createElement("p");
+
+    text.textContent =
+        message;
+
+
+    notice.appendChild(
+        text
+    );
+
+
+    return notice;
+}
+
+
+function renderVehicleResult(
+    result
+) {
 
     if (
         !result ||
-        typeof result !== "object"
+        typeof result !==
+            "object"
     ) {
 
         renderEmptyState();
@@ -292,7 +379,9 @@ function renderVehicleResult(result) {
     }
 
 
-    clearElement(container);
+    clearElement(
+        container
+    );
 
 
     container.className =
@@ -300,12 +389,15 @@ function renderVehicleResult(result) {
 
 
     const vehicle =
-        result.vehicle || {};
+        result.vehicle ||
+        {};
 
 
-    /**
-     * Header
-     */
+    const meta =
+        result.meta ||
+        {};
+
+
     const header =
         createElement(
             "div",
@@ -320,15 +412,27 @@ function renderVehicleResult(result) {
         );
 
 
+    vehicleTitle.dir =
+        "ltr";
+
+
     const titleParts = [
+
         vehicle.make,
+
         vehicle.model,
+
         vehicle.year
-    ].filter(Boolean);
+
+    ].filter(
+        Boolean
+    );
 
 
     vehicleTitle.textContent =
-        titleParts.join(" ");
+        titleParts.join(
+            " "
+        );
 
 
     header.appendChild(
@@ -336,9 +440,6 @@ function renderVehicleResult(result) {
     );
 
 
-    /**
-     * Compatibility range
-     */
     if (
         vehicle.yearStart &&
         vehicle.yearEnd
@@ -358,18 +459,38 @@ function renderVehicleResult(result) {
         header.appendChild(
             range
         );
-
     }
 
 
-    container.appendChild(header);
+    container.appendChild(
+        header
+    );
 
 
     /**
-     * Dynamic categories
+     * Overlap / review warning.
      */
+    if (
+        meta.hasOverlap &&
+        meta.warning
+    ) {
+
+        container.appendChild(
+            createNotice(
+                meta.warning,
+                Boolean(
+                    meta
+                        .blockingWarning
+                )
+            )
+        );
+    }
+
+
     const categories =
-        Array.isArray(result.categories)
+        Array.isArray(
+            result.categories
+        )
             ? result.categories
             : [];
 
@@ -384,15 +505,19 @@ function renderVehicleResult(result) {
     categories.forEach(
         (category) => {
 
-            categoryContainer.appendChild(
-                createCategoryCard(category)
-            );
-
+            categoryContainer
+                .appendChild(
+                    createCategoryCard(
+                        category
+                    )
+                );
         }
     );
 
 
-    if (categories.length === 0) {
+    if (
+        categories.length === 0
+    ) {
 
         const empty =
             createElement(
@@ -403,10 +528,10 @@ function renderVehicleResult(result) {
         empty.textContent =
             "لا توجد بيانات توافق معتمدة لهذه السيارة.";
 
+
         categoryContainer.appendChild(
             empty
         );
-
     }
 
 
@@ -418,11 +543,11 @@ function renderVehicleResult(result) {
     /**
      * Future AI hook.
      *
-     * The AI module receives only VERIFIED vehicle
-     * and fitment data.
+     * AI still remains disabled.
      */
     if (
         window.SmartDragonAI &&
+
         typeof window
             .SmartDragonAI
             .vehicleContextUpdated ===
@@ -434,55 +559,10 @@ function renderVehicleResult(result) {
             .vehicleContextUpdated(
                 result
             );
-
     }
-
 }
 
-function renderLoadingState() {
 
-    const container =
-        getResultsContainer();
-
-    if (!container) {
-        return;
-    }
-
-    clearElement(container);
-
-    container.className =
-        "results-placeholder results-placeholder--loading";
-
-    const icon =
-        createElement(
-            "div",
-            "results-placeholder__icon"
-        );
-
-    icon.textContent = "◌";
-
-    const title =
-        createElement("h3");
-
-    title.textContent =
-        "جاري تحميل بيانات التوافق";
-
-    const text =
-        createElement("p");
-
-    text.textContent =
-        "يتم الآن تجهيز بيانات السيارة المختارة.";
-
-    container.append(
-        icon,
-        title,
-        text
-    );
-}
-
-/**
- * Public API.
- */
 window.SmartDragonVehicleResults =
     Object.freeze({
 

@@ -1,62 +1,26 @@
 /**
- * =========================================================
  * Smart Dragon Inventory
  * Vehicle Selector Controller
- * =========================================================
  *
- * Customer selection flow:
- *
- * Make
- *   ↓
- * Model
- *   ↓
- * Year
- *
- * Current stage:
- * - Development preview only
- * - Firebase is NOT connected
- * - Vehicle controls remain disabled
- *
- * Future stage:
- * - Makes will be loaded from approved database records
- * - Models will depend on the selected make
- * - Years will depend on approved year ranges
+ * Local development preview only.
+ * Firebase remains disabled.
  */
 
-
-/**
- * Get application configuration safely.
- */
 function getSmartDragonConfig() {
     return window.SmartDragonConfig || null;
 }
 
-
-/**
- * Get selector elements.
- */
 function getVehicleSelectorElements() {
     return {
-        make:
-            document.getElementById("vehicleMake"),
-
-        model:
-            document.getElementById("vehicleModel"),
-
-        year:
-            document.getElementById("vehicleYear"),
-
-        searchButton:
-            document.getElementById(
-                "searchVehicleButton"
-            )
+        make: document.getElementById("vehicleMake"),
+        model: document.getElementById("vehicleModel"),
+        year: document.getElementById("vehicleYear"),
+        searchButton: document.getElementById(
+            "searchVehicleButton"
+        )
     };
 }
 
-
-/**
- * Reset a select element.
- */
 function resetSelect(
     selectElement,
     placeholder
@@ -65,7 +29,7 @@ function resetSelect(
         return;
     }
 
-    selectElement.innerHTML = "";
+    selectElement.replaceChildren();
 
     const option =
         document.createElement("option");
@@ -78,13 +42,6 @@ function resetSelect(
     selectElement.value = "";
 }
 
-
-/**
- * Add safe options to a select.
- *
- * Important:
- * textContent is used instead of innerHTML.
- */
 function populateSelect(
     selectElement,
     values,
@@ -99,26 +56,22 @@ function populateSelect(
         placeholder
     );
 
-
     values.forEach((value) => {
-
         const option =
             document.createElement("option");
 
-        option.value = String(value);
+        option.value =
+            String(value);
 
         option.textContent =
             String(value);
 
-        selectElement.appendChild(option);
-
+        selectElement.appendChild(
+            option
+        );
     });
 }
 
-
-/**
- * Enable or disable one field.
- */
 function setControlState(
     element,
     enabled
@@ -127,7 +80,8 @@ function setControlState(
         return;
     }
 
-    element.disabled = !enabled;
+    element.disabled =
+        !enabled;
 
     element.setAttribute(
         "aria-disabled",
@@ -135,33 +89,26 @@ function setControlState(
     );
 }
 
-
-/**
- * Enable or disable all vehicle controls.
- */
-function setVehicleSelectorEnabled(enabled) {
-
+function setVehicleSelectorEnabled(
+    enabled
+) {
     const elements =
         getVehicleSelectorElements();
-
 
     setControlState(
         elements.make,
         enabled
     );
 
-
     setControlState(
         elements.model,
         false
     );
 
-
     setControlState(
         elements.year,
         false
     );
-
 
     setControlState(
         elements.searchButton,
@@ -171,27 +118,204 @@ function setVehicleSelectorEnabled(enabled) {
 
 
 /**
- * Future database adapter.
- *
- * This object intentionally contains stub methods.
- *
- * Later, Firebase/Firestore logic should be connected here
- * instead of being mixed directly into UI event handlers.
+ * Return one category from the structured
+ * local migration data.
  */
-const VehicleDataProvider = (() => {
+function getFitment(
+    record,
+    slug
+) {
+    const fitments =
+        Array.isArray(
+            record?.fitments
+        )
+            ? record.fitments
+            : [];
+
+    return (
+        fitments.find(
+            (item) =>
+                item?.categorySlug ===
+                slug
+        ) || null
+    );
+}
+
+
+/**
+ * Format bulb data for the UI.
+ */
+function bulbValue(field) {
+
+    if (!field) {
+        return {
+            value: "غير متوفر",
+            tone: "muted",
+            dir: "rtl"
+        };
+    }
+
+    if (field.notApplicable) {
+        return {
+            value:
+                "غير منطبق / لا يوجد",
+
+            tone: "muted",
+
+            dir: "rtl"
+        };
+    }
+
+    if (field.code) {
+
+        let value =
+            field.code;
+
+        if (
+            Array.isArray(
+                field.aliases
+            ) &&
+            field.aliases.length > 0
+        ) {
+            value +=
+                ` (${field.aliases.join(", ")})`;
+        }
+
+        return {
+            value,
+            tone: "normal",
+            dir: "ltr"
+        };
+    }
+
+    const raw =
+        field.raw ||
+        field.notes ||
+        "غير متوفر";
+
+    return {
+        value: raw,
+
+        tone:
+            field.dependsOnTrim
+                ? "warning"
+                : "normal",
+
+        dir:
+            /[\u0600-\u06FF]/.test(
+                raw
+            )
+                ? "auto"
+                : "ltr",
+
+        hint:
+            field.dependsOnTrim
+                ? "قد تختلف حسب الفئة / Trim"
+                : null
+    };
+}
+
+
+/**
+ * Format wiper data.
+ */
+function wiperValue(field) {
+
+    if (!field) {
+        return {
+            value: "غير متوفر",
+            tone: "muted",
+            dir: "rtl"
+        };
+    }
+
+    if (
+        field.value !== null &&
+        field.value !== undefined
+    ) {
+        return {
+            value:
+                `${field.value} inch`,
+
+            tone: "normal",
+
+            dir: "ltr"
+        };
+    }
+
+    return {
+        value:
+            field.raw ||
+            "غير متوفر",
+
+        tone: "muted",
+
+        dir: "auto"
+    };
+}
+
+
+/**
+ * Format screen data.
+ */
+function screenValue(field) {
+
+    if (!field) {
+        return {
+            value: "غير متوفر",
+            tone: "muted",
+            dir: "rtl"
+        };
+    }
+
+    return {
+        value:
+            field.raw ||
+            field.notes ||
+            "غير متوفر",
+
+        tone: "normal",
+
+        dir: "ltr"
+    };
+}
+
+
+/**
+ * Local data provider.
+ *
+ * This is intentionally isolated from the UI so
+ * Firestore can replace it later.
+ */
+const VehicleDataProvider =
+(() => {
+
     let recordsCache = null;
 
+
     async function loadRecords() {
+
         if (recordsCache) {
             return recordsCache;
         }
 
-        const response = await fetch(
-            "data/vehicles.json",
-            {
-                cache: "no-store"
-            }
-        );
+        const config =
+            getSmartDragonConfig();
+
+        const dataUrl =
+            config
+                ?.LOCAL_DATA
+                ?.vehiclesUrl ||
+            "data/vehicles.json";
+
+        const response =
+            await fetch(
+                dataUrl,
+                {
+                    cache:
+                        "no-store"
+                }
+            );
 
         if (!response.ok) {
             throw new Error(
@@ -199,15 +323,19 @@ const VehicleDataProvider = (() => {
             );
         }
 
-        const data = await response.json();
+        const data =
+            await response.json();
 
-        if (!Array.isArray(data)) {
+        if (
+            !Array.isArray(data)
+        ) {
             throw new Error(
                 "vehicles.json must contain an array."
             );
         }
 
-        recordsCache = data;
+        recordsCache =
+            data;
 
         console.info(
             `[Smart Dragon] Loaded ${recordsCache.length} local vehicle records.`
@@ -217,84 +345,10 @@ const VehicleDataProvider = (() => {
     }
 
 
-    function getFitment(record, slug) {
-        const fitments =
-            Array.isArray(record?.fitments)
-                ? record.fitments
-                : [];
-
-        return (
-            fitments.find(
-                (item) =>
-                    item?.categorySlug === slug
-            ) || null
-        );
-    }
-
-
-    function bulbValue(field) {
-        if (!field) {
-            return "غير متوفر";
-        }
-
-        if (field.notApplicable) {
-            return "غير منطبق / لا يوجد";
-        }
-
-        if (field.code) {
-            if (
-                Array.isArray(field.aliases) &&
-                field.aliases.length > 0
-            ) {
-                return `${field.code} (${field.aliases.join(", ")})`;
-            }
-
-            return field.code;
-        }
-
-        return (
-            field.raw ||
-            field.notes ||
-            "غير متوفر"
-        );
-    }
-
-
-    function wiperValue(field) {
-        if (!field) {
-            return "غير متوفر";
-        }
-
-        if (
-            field.value !== null &&
-            field.value !== undefined
-        ) {
-            return `${field.value} inch`;
-        }
-
-        return (
-            field.raw ||
-            "غير متوفر"
-        );
-    }
-
-
-    function screenValue(field) {
-        if (!field) {
-            return "غير متوفر";
-        }
-
-        return (
-            field.raw ||
-            field.notes ||
-            "غير متوفر"
-        );
-    }
-
-
-    return {
+    return Object.freeze({
 
         async getMakes() {
+
             const records =
                 await loadRecords();
 
@@ -303,15 +357,20 @@ const VehicleDataProvider = (() => {
                     records
                         .map(
                             (record) =>
-                                record?.vehicle?.make
+                                record
+                                    ?.vehicle
+                                    ?.make
                         )
-                        .filter(Boolean)
+                        .filter(
+                            Boolean
+                        )
                 )
             ].sort();
         },
 
 
         async getModels(make) {
+
             const records =
                 await loadRecords();
 
@@ -320,19 +379,30 @@ const VehicleDataProvider = (() => {
                     records
                         .filter(
                             (record) =>
-                                record?.vehicle?.make === make
+                                record
+                                    ?.vehicle
+                                    ?.make ===
+                                make
                         )
                         .map(
                             (record) =>
-                                record?.vehicle?.model
+                                record
+                                    ?.vehicle
+                                    ?.model
                         )
-                        .filter(Boolean)
+                        .filter(
+                            Boolean
+                        )
                 )
             ].sort();
         },
 
 
-        async getYears(make, model) {
+        async getYears(
+            make,
+            model
+        ) {
+
             const records =
                 await loadRecords();
 
@@ -342,38 +412,64 @@ const VehicleDataProvider = (() => {
             records
                 .filter(
                     (record) =>
-                        record?.vehicle?.make === make &&
-                        record?.vehicle?.model === model
+                        record
+                            ?.vehicle
+                            ?.make ===
+                            make &&
+                        record
+                            ?.vehicle
+                            ?.model ===
+                            model
                 )
-                .forEach((record) => {
-                    const start =
-                        Number(
-                            record.vehicle.yearStart
-                        );
+                .forEach(
+                    (record) => {
 
-                    const end =
-                        Number(
-                            record.vehicle.yearEnd
-                        );
+                        const start =
+                            Number(
+                                record
+                                    .vehicle
+                                    .yearStart
+                            );
 
-                    if (
-                        !Number.isInteger(start) ||
-                        !Number.isInteger(end)
-                    ) {
-                        return;
+                        const end =
+                            Number(
+                                record
+                                    .vehicle
+                                    .yearEnd
+                            );
+
+                        if (
+                            !Number
+                                .isInteger(
+                                    start
+                                ) ||
+                            !Number
+                                .isInteger(
+                                    end
+                                )
+                        ) {
+                            return;
+                        }
+
+                        for (
+                            let year =
+                                start;
+                            year <= end;
+                            year += 1
+                        ) {
+                            years.add(
+                                year
+                            );
+                        }
+
                     }
+                );
 
-                    for (
-                        let year = start;
-                        year <= end;
-                        year += 1
-                    ) {
-                        years.add(year);
-                    }
-                });
-
-            return [...years].sort(
-                (a, b) => b - a
+            return [
+                ...years
+            ].sort(
+                (a, b) =>
+                    b - a
             );
         },
 
@@ -383,48 +479,96 @@ const VehicleDataProvider = (() => {
             model,
             year
         ) {
+
             const records =
                 await loadRecords();
 
             const matches =
                 records.filter(
                     (record) => {
+
                         const vehicle =
-                            record?.vehicle;
+                            record
+                                ?.vehicle;
 
                         return (
-                            vehicle?.make === make &&
-                            vehicle?.model === model &&
-                            year >= vehicle.yearStart &&
-                            year <= vehicle.yearEnd
+                            vehicle
+                                ?.make ===
+                                make &&
+
+                            vehicle
+                                ?.model ===
+                                model &&
+
+                            year >=
+                                vehicle
+                                    .yearStart &&
+
+                            year <=
+                                vehicle
+                                    .yearEnd
                         );
                     }
                 );
 
 
-            if (matches.length === 0) {
+            /**
+             * No record.
+             */
+            if (
+                matches.length === 0
+            ) {
                 return null;
             }
 
 
-            if (matches.length > 1) {
+            /**
+             * More than one year-range matches.
+             *
+             * Never choose one automatically.
+             */
+            if (
+                matches.length > 1
+            ) {
+
                 return {
+
                     vehicle: {
                         make,
                         model,
                         year
                     },
 
+                    meta: {
+
+                        hasOverlap:
+                            true,
+
+                        blockingWarning:
+                            true,
+
+                        warning:
+                            "يوجد أكثر من سجل يطابق نفس السيارة والسنة. لم يتم اختيار سجل تلقائياً حتى تتم مراجعة نطاقات السنوات."
+                    },
+
                     categories: [
                         {
-                            name: "تنبيه مراجعة",
+                            name:
+                                "تنبيه مراجعة",
 
                             items: [
                                 {
-                                    label: "الحالة",
+                                    label:
+                                        "الحالة",
 
                                     value:
-                                        "يوجد أكثر من سجل يطابق هذه السنة."
+                                        "تداخل يحتاج مراجعة",
+
+                                    tone:
+                                        "warning",
+
+                                    dir:
+                                        "rtl"
                                 },
 
                                 {
@@ -432,7 +576,13 @@ const VehicleDataProvider = (() => {
                                         "عدد السجلات المطابقة",
 
                                     value:
-                                        matches.length
+                                        matches.length,
+
+                                    tone:
+                                        "warning",
+
+                                    dir:
+                                        "ltr"
                                 }
                             ]
                         }
@@ -441,8 +591,24 @@ const VehicleDataProvider = (() => {
             }
 
 
+            /**
+             * Exactly one match.
+             */
             const record =
                 matches[0];
+
+
+            const hasOverlap =
+                Boolean(
+                    record
+                        ?.source
+                        ?.hasOverlap ||
+
+                    record
+                        ?.vehicle
+                        ?.hasOverlap
+                );
+
 
             const lighting =
                 getFitment(
@@ -450,11 +616,13 @@ const VehicleDataProvider = (() => {
                     "lighting"
                 );
 
+
             const wipers =
                 getFitment(
                     record,
                     "wipers"
                 );
+
 
             const screens =
                 getFitment(
@@ -464,118 +632,158 @@ const VehicleDataProvider = (() => {
 
 
             return {
+
                 vehicle: {
+
                     make:
-                        record.vehicle.make,
+                        record
+                            .vehicle
+                            .make,
 
                     model:
-                        record.vehicle.model,
+                        record
+                            .vehicle
+                            .model,
 
                     year,
 
                     yearStart:
-                        record.vehicle.yearStart,
+                        record
+                            .vehicle
+                            .yearStart,
 
                     yearEnd:
-                        record.vehicle.yearEnd
+                        record
+                            .vehicle
+                            .yearEnd
                 },
 
+
+                meta: {
+
+                    hasOverlap,
+
+                    blockingWarning:
+                        false,
+
+                    warning:
+                        hasOverlap
+                            ? "يوجد تداخل في نطاق السنوات مع سجل آخر. البيانات تحتاج مراجعة قبل النشر النهائي."
+                            : null
+                },
+
+
                 categories: [
+
                     {
-                        name: "اللمبات",
+                        name:
+                            "اللمبات",
 
                         items: [
-                            {
-                                label: "الواطي",
 
-                                value:
-                                    bulbValue(
-                                        lighting?.fields?.lowBeam
-                                    )
+                            {
+                                label:
+                                    "الواطي",
+
+                                ...bulbValue(
+                                    lighting
+                                        ?.fields
+                                        ?.lowBeam
+                                )
                             },
 
                             {
-                                label: "العالي",
+                                label:
+                                    "العالي",
 
-                                value:
-                                    bulbValue(
-                                        lighting?.fields?.highBeam
-                                    )
+                                ...bulbValue(
+                                    lighting
+                                        ?.fields
+                                        ?.highBeam
+                                )
                             },
 
                             {
-                                label: "الضباب",
+                                label:
+                                    "الضباب",
 
-                                value:
-                                    bulbValue(
-                                        lighting?.fields?.fogLight
-                                    )
+                                ...bulbValue(
+                                    lighting
+                                        ?.fields
+                                        ?.fogLight
+                                )
                             }
                         ]
                     },
 
+
                     {
-                        name: "المساحات",
+                        name:
+                            "المساحات",
 
                         items: [
+
                             {
                                 label:
                                     "جهة السائق",
 
-                                value:
-                                    wiperValue(
-                                        wipers?.fields?.driver
-                                    )
+                                ...wiperValue(
+                                    wipers
+                                        ?.fields
+                                        ?.driver
+                                )
                             },
 
                             {
                                 label:
                                     "جهة الراكب",
 
-                                value:
-                                    wiperValue(
-                                        wipers?.fields?.passenger
-                                    )
+                                ...wiperValue(
+                                    wipers
+                                        ?.fields
+                                        ?.passenger
+                                )
                             }
                         ]
                     },
 
+
                     {
-                        name: "الشاشات",
+                        name:
+                            "الشاشات",
 
                         items: [
+
                             {
                                 label:
                                     "المقاس / النوع",
 
-                                value:
-                                    screenValue(
-                                        screens?.fields?.screen
-                                    )
+                                ...screenValue(
+                                    screens
+                                        ?.fields
+                                        ?.screen
+                                )
                             }
                         ]
                     }
                 ]
             };
         }
-    };
+    });
+
 })();
 
 
-/**
- * Load approved vehicle makes.
- */
 async function loadMakes() {
 
     const elements =
         getVehicleSelectorElements();
 
-
     try {
 
         const makes =
-            await VehicleDataProvider.getMakes();
-
+            await VehicleDataProvider
+                .getMakes();
 
         populateSelect(
             elements.make,
@@ -583,10 +791,9 @@ async function loadMakes() {
             "اختر الشركة"
         );
 
-
         setControlState(
             elements.make,
-            true
+            makes.length > 0
         );
 
     } catch (error) {
@@ -596,78 +803,65 @@ async function loadMakes() {
             error
         );
 
-
         resetSelect(
             elements.make,
             "تعذر تحميل الشركات"
         );
-
     }
-
 }
 
 
-/**
- * Handle make selection.
- */
 async function handleMakeChange() {
 
     const elements =
         getVehicleSelectorElements();
 
     const selectedMake =
-        elements.make?.value || "";
-
+        elements.make
+            ?.value || "";
 
     resetSelect(
         elements.model,
         "اختر الموديل"
     );
 
-
     resetSelect(
         elements.year,
         "اختر السنة"
     );
-
 
     setControlState(
         elements.model,
         false
     );
 
-
     setControlState(
         elements.year,
         false
     );
-
 
     setControlState(
         elements.searchButton,
         false
     );
 
-
     if (!selectedMake) {
         return;
     }
 
-
     try {
 
         const models =
-            await VehicleDataProvider.getModels(
-                selectedMake
-            );
-
+            await VehicleDataProvider
+                .getModels(
+                    selectedMake
+                );
 
         populateSelect(
             elements.model,
             models,
             "اختر الموديل"
         );
-
 
         setControlState(
             elements.model,
@@ -680,44 +874,37 @@ async function handleMakeChange() {
             "[Smart Dragon] Failed to load vehicle models.",
             error
         );
-
     }
-
 }
 
 
-/**
- * Handle model selection.
- */
 async function handleModelChange() {
 
     const elements =
         getVehicleSelectorElements();
 
     const selectedMake =
-        elements.make?.value || "";
+        elements.make
+            ?.value || "";
 
     const selectedModel =
-        elements.model?.value || "";
-
+        elements.model
+            ?.value || "";
 
     resetSelect(
         elements.year,
         "اختر السنة"
     );
 
-
     setControlState(
         elements.year,
         false
     );
 
-
     setControlState(
         elements.searchButton,
         false
     );
-
 
     if (
         !selectedMake ||
@@ -726,22 +913,20 @@ async function handleModelChange() {
         return;
     }
 
-
     try {
 
         const years =
-            await VehicleDataProvider.getYears(
-                selectedMake,
-                selectedModel
-            );
-
+            await VehicleDataProvider
+                .getYears(
+                    selectedMake,
+                    selectedModel
+                );
 
         populateSelect(
             elements.year,
             years,
             "اختر السنة"
         );
-
 
         setControlState(
             elements.year,
@@ -754,54 +939,50 @@ async function handleModelChange() {
             "[Smart Dragon] Failed to load vehicle years.",
             error
         );
-
     }
-
 }
 
 
-/**
- * Handle year selection.
- */
 function handleYearChange() {
 
     const elements =
         getVehicleSelectorElements();
 
-
     const ready =
         Boolean(
-            elements.make?.value &&
-            elements.model?.value &&
-            elements.year?.value
-        );
+            elements.make
+                ?.value &&
 
+            elements.model
+                ?.value &&
+
+            elements.year
+                ?.value
+        );
 
     setControlState(
         elements.searchButton,
         ready
     );
-
 }
 
 
-/**
- * Handle vehicle search.
- */
 async function handleVehicleSearch() {
 
     const elements =
         getVehicleSelectorElements();
 
-
     const make =
-        elements.make?.value || "";
+        elements.make
+            ?.value || "";
 
     const model =
-        elements.model?.value || "";
+        elements.model
+            ?.value || "";
 
     const year =
-        elements.year?.value || "";
+        elements.year
+            ?.value || "";
 
 
     if (
@@ -813,34 +994,36 @@ async function handleVehicleSearch() {
     }
 
 
-    /**
-     * Additional client-side validation.
-     */
     const validator =
-        window.SmartDragonValidation;
+        window
+            .SmartDragonValidation;
 
 
-    if (validator) {
+    if (
+        validator &&
+        (
+            !validator
+                .validateVehicleMake(
+                    make
+                ) ||
 
-        if (
-            !validator.validateVehicleMake(
-                make
-            ) ||
-            !validator.validateVehicleModel(
-                model
-            ) ||
-            !validator.validateVehicleYear(
-                year
-            )
-        ) {
+            !validator
+                .validateVehicleModel(
+                    model
+                ) ||
 
-            console.warn(
-                "[Smart Dragon] Vehicle selection validation failed."
-            );
+            !validator
+                .validateVehicleYear(
+                    year
+                )
+        )
+    ) {
 
-            return;
-        }
+        console.warn(
+            "[Smart Dragon] Vehicle selection validation failed."
+        );
 
+        return;
     }
 
 
@@ -851,16 +1034,22 @@ async function handleVehicleSearch() {
             false
         );
 
+
         if (
-    window.SmartDragonVehicleResults &&
-    typeof window
-        .SmartDragonVehicleResults
-        .renderLoading === "function"
-) {
-    window
-        .SmartDragonVehicleResults
-        .renderLoading();
-}
+            window
+                .SmartDragonVehicleResults &&
+
+            typeof window
+                .SmartDragonVehicleResults
+                .renderLoading ===
+                "function"
+        ) {
+
+            window
+                .SmartDragonVehicleResults
+                .renderLoading();
+        }
+
 
         const result =
             await VehicleDataProvider
@@ -871,21 +1060,21 @@ async function handleVehicleSearch() {
                 );
 
 
-        /**
-         * Result rendering is delegated to
-         * vehicle-results.js
-         */
         if (
-            window.SmartDragonVehicleResults &&
+            window
+                .SmartDragonVehicleResults &&
+
             typeof window
                 .SmartDragonVehicleResults
-                .render === "function"
+                .render ===
+                "function"
         ) {
 
             window
                 .SmartDragonVehicleResults
-                .render(result);
-
+                .render(
+                    result
+                );
         }
 
     } catch (error) {
@@ -898,56 +1087,45 @@ async function handleVehicleSearch() {
     } finally {
 
         handleYearChange();
-
     }
-
 }
 
 
-/**
- * Attach UI event listeners.
- */
 function attachVehicleSelectorEvents() {
 
     const elements =
         getVehicleSelectorElements();
 
+    elements.make
+        ?.addEventListener(
+            "change",
+            handleMakeChange
+        );
 
-    elements.make?.addEventListener(
-        "change",
-        handleMakeChange
-    );
+    elements.model
+        ?.addEventListener(
+            "change",
+            handleModelChange
+        );
 
-
-    elements.model?.addEventListener(
-        "change",
-        handleModelChange
-    );
-
-
-    elements.year?.addEventListener(
-        "change",
-        handleYearChange
-    );
-
+    elements.year
+        ?.addEventListener(
+            "change",
+            handleYearChange
+        );
 
     elements.searchButton
         ?.addEventListener(
             "click",
             handleVehicleSearch
         );
-
 }
 
 
-/**
- * Initialize selector.
- */
 function initializeVehicleSelector() {
 
     const config =
         getSmartDragonConfig();
-
 
     if (!config) {
 
@@ -962,44 +1140,47 @@ function initializeVehicleSelector() {
     attachVehicleSelectorEvents();
 
 
-    /**
-     * Development mode:
-     * Keep everything disabled.
-     */
     const localPreviewEnabled =
-    config.APP_MODE === "development" &&
-    config.FEATURES.localDataPreview;
+        config.APP_MODE ===
+            "development" &&
 
-const productionSearchEnabled =
-    config.APP_MODE === "production" &&
-    config.FEATURES.vehicleSearch;
+        config.FEATURES
+            .localDataPreview;
 
-if (
-    !localPreviewEnabled &&
-    !productionSearchEnabled
-) {
-    setVehicleSelectorEnabled(false);
 
-    console.info(
-        "[Smart Dragon] Vehicle selector is disabled."
+    const productionSearchEnabled =
+        config.APP_MODE ===
+            "production" &&
+
+        config.FEATURES
+            .vehicleSearch;
+
+
+    if (
+        !localPreviewEnabled &&
+        !productionSearchEnabled
+    ) {
+
+        setVehicleSelectorEnabled(
+            false
+        );
+
+        console.info(
+            "[Smart Dragon] Vehicle selector is disabled."
+        );
+
+        return;
+    }
+
+
+    setVehicleSelectorEnabled(
+        true
     );
 
-    return;
-}
-
-setVehicleSelectorEnabled(true);
-
-loadMakes();
-
+    loadMakes();
 }
 
 
-/**
- * Public API.
- *
- * Keeping a small public interface makes it easier
- * to test and replace the data provider later.
- */
 window.SmartDragonVehicleSelector =
     Object.freeze({
 
