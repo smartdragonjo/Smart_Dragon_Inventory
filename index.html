@@ -1,44 +1,69 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<html
+    lang="ar"
+    dir="rtl"
+>
+
+<head>
+
+    <meta
+        charset="UTF-8"
+    >
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
 
     <meta
         name="description"
-        content="محرك بحث التنين الذكي للتوافق بين السيارات وقطع الغيار - Smart Dragon Jordan"
+        content="محرك بحث التنين الذكي لمعرفة توافق قطع وتجهيزات السيارات - Smart Dragon Jordan"
     >
 
-    <title>محرك بحث التنين الذكي | Smart Dragon</title>
 
-    <!--
-        Smart Dragon Inventory
-        Development Preview
+    <title>
+        محرك بحث التنين الذكي | Smart Dragon
+    </title>
 
-        IMPORTANT:
-        Firebase is intentionally NOT connected at this stage.
-        Do not add Firebase credentials or secrets directly to this file.
-    -->
 
-    <link rel="stylesheet" href="css/app.css">
+    <!-- =========================================================
+         Smart Dragon Inventory
+         Public Beta
+         ========================================================= -->
 
-    <!-- Smart Dragon Apps Launcher -->
+
+    <link
+        rel="stylesheet"
+        href="css/app.css"
+    >
+
+
+    <!-- =========================================================
+         Smart Dragon Apps Launcher
+         ========================================================= -->
+
     <link
         rel="stylesheet"
         href="https://smartdragonjo.com/portal/apps-launcher/smart-dragon-launcher.css?v=1.4"
     >
+
 </head>
 
+
 <body>
+
 
     <!-- =========================================================
          Smart Dragon Customer Apps Launcher
          ========================================================= -->
+
     <div
         id="smart-dragon-launcher"
         data-role="customer"
     ></div>
+
 
     <script
         src="https://smartdragonjo.com/portal/apps-launcher/smart-dragon-launcher.js?v=1.4"
@@ -46,37 +71,62 @@
     ></script>
 
 
+
     <!-- =========================================================
-         Development Status Banner
+         Public Beta Notice
          ========================================================= -->
+
     <div
         class="development-banner"
         role="status"
         aria-live="polite"
     >
-        <div class="development-banner__icon" aria-hidden="true">
-            ⚠
+
+        <div
+            class="development-banner__icon"
+            aria-hidden="true"
+        >
+            ℹ
         </div>
 
-        <div class="development-banner__content">
-            <strong>الموقع قيد التطوير</strong>
+
+        <div
+            class="development-banner__content"
+        >
+
+            <strong>
+                نسخة تجريبية عامة
+            </strong>
+
 
             <span>
-                نظام البحث الجديد قيد الإعداد حالياً، لذلك تم تعطيل خيارات البحث مؤقتاً.
+                محرك البحث متاح للاستخدام حالياً،
+                ويتم تحديث وتوسيع بيانات التوافق بشكل مستمر.
             </span>
+
         </div>
+
     </div>
+
 
 
     <!-- =========================================================
          Main Application
          ========================================================= -->
-    <main class="app">
+
+    <main
+        class="app"
+    >
+
 
         <!-- =====================================================
              Header
              ===================================================== -->
-        <header class="app-header">
+
+        <header
+            class="app-header"
+        >
+
 
             <img
                 src="logo.png"
@@ -84,56 +134,94 @@
                 class="app-logo"
             >
 
-            <div class="brand-content">
-                <h1>محرك بحث التنين الذكي</h1>
 
-                <p class="tagline">
+            <div
+                class="brand-content"
+            >
+
+                <h1>
+                    محرك بحث التنين الذكي
+                </h1>
+
+
+                <p
+                    class="tagline"
+                >
                     ابحث عن القطع والتجهيزات المتوافقة مع سيارتك
                 </p>
 
-                <span class="beta-badge">
-                    DEVELOPMENT PREVIEW
+
+                <span
+                    class="beta-badge"
+                >
+                    PUBLIC BETA
                 </span>
+
             </div>
 
         </header>
 
 
+
         <!-- =====================================================
              Vehicle Selector
              ===================================================== -->
+
         <section
             class="vehicle-search-card"
             aria-labelledby="vehicle-search-title"
         >
 
-            <div class="section-heading">
 
-                <span class="section-heading__number">
+            <div
+                class="section-heading"
+            >
+
+
+                <span
+                    class="section-heading__number"
+                >
                     1
                 </span>
 
+
                 <div>
-                    <h2 id="vehicle-search-title">
+
+                    <h2
+                        id="vehicle-search-title"
+                    >
                         اختر سيارتك
                     </h2>
 
+
                     <p>
-                        حدد الشركة ثم الموديل ثم سنة الصنع للحصول على بيانات التوافق.
+                        حدد الشركة ثم الموديل ثم سنة الصنع
+                        للحصول على بيانات التوافق.
                     </p>
+
                 </div>
 
             </div>
 
 
-            <div class="vehicle-selector">
+
+            <div
+                class="vehicle-selector"
+            >
+
 
                 <!-- Manufacturer -->
-                <div class="form-group">
 
-                    <label for="vehicleMake">
+                <div
+                    class="form-group"
+                >
+
+                    <label
+                        for="vehicleMake"
+                    >
                         الشركة المصنعة
                     </label>
+
 
                     <select
                         id="vehicleMake"
@@ -141,20 +229,31 @@
                         disabled
                         aria-disabled="true"
                     >
-                        <option value="">
+
+                        <option
+                            value=""
+                        >
                             اختر الشركة
                         </option>
+
                     </select>
 
                 </div>
 
 
-                <!-- Model -->
-                <div class="form-group">
 
-                    <label for="vehicleModel">
+                <!-- Model -->
+
+                <div
+                    class="form-group"
+                >
+
+                    <label
+                        for="vehicleModel"
+                    >
                         الموديل
                     </label>
+
 
                     <select
                         id="vehicleModel"
@@ -162,20 +261,31 @@
                         disabled
                         aria-disabled="true"
                     >
-                        <option value="">
+
+                        <option
+                            value=""
+                        >
                             اختر الموديل
                         </option>
+
                     </select>
 
                 </div>
 
 
-                <!-- Year -->
-                <div class="form-group">
 
-                    <label for="vehicleYear">
+                <!-- Year -->
+
+                <div
+                    class="form-group"
+                >
+
+                    <label
+                        for="vehicleYear"
+                    >
                         سنة الصنع
                     </label>
+
 
                     <select
                         id="vehicleYear"
@@ -183,14 +293,19 @@
                         disabled
                         aria-disabled="true"
                     >
-                        <option value="">
+
+                        <option
+                            value=""
+                        >
                             اختر السنة
                         </option>
+
                     </select>
 
                 </div>
 
             </div>
+
 
 
             <button
@@ -204,46 +319,66 @@
             </button>
 
 
-            <p class="development-note">
-                سيتم تفعيل البحث بعد الانتهاء من إعداد قاعدة البيانات
-                ونظام التحقق والأمان.
+            <p
+                class="development-note"
+            >
+                اختر بيانات سيارتك للحصول على معلومات
+                التوافق المتوفرة حالياً.
             </p>
 
         </section>
 
 
+
         <!-- =====================================================
              Results
              ===================================================== -->
+
         <section
             id="vehicleResultsSection"
             class="results-section"
             aria-labelledby="results-title"
         >
 
-            <div class="section-heading">
 
-                <span class="section-heading__number">
+            <div
+                class="section-heading"
+            >
+
+
+                <span
+                    class="section-heading__number"
+                >
                     2
                 </span>
 
+
                 <div>
-                    <h2 id="results-title">
+
+                    <h2
+                        id="results-title"
+                    >
                         بيانات التوافق
                     </h2>
 
+
                     <p>
-                        ستظهر هنا المعلومات المعتمدة الخاصة بالسيارة المختارة.
+                        ستظهر هنا بيانات القطع والتجهيزات
+                        الخاصة بالسيارة المختارة.
                     </p>
+
                 </div>
 
             </div>
+
 
 
             <div
                 id="resultsContainer"
                 class="results-placeholder"
             >
+
+
                 <div
                     class="results-placeholder__icon"
                     aria-hidden="true"
@@ -251,28 +386,37 @@
                     🚗
                 </div>
 
+
                 <h3>
                     لم يتم اختيار سيارة
                 </h3>
 
+
                 <p>
-                    ميزة البحث غير متاحة حالياً أثناء تطوير النظام.
+                    اختر الشركة والموديل والسنة لعرض بيانات التوافق.
                 </p>
+
             </div>
 
         </section>
 
 
+
         <!-- =====================================================
              Future Smart Dragon AI
              ===================================================== -->
+
         <section
             id="smartDragonAiSection"
             class="ai-preview-card"
             aria-labelledby="ai-title"
         >
 
-            <div class="ai-preview-card__header">
+
+            <div
+                class="ai-preview-card__header"
+            >
+
 
                 <span
                     class="ai-preview-card__icon"
@@ -281,34 +425,49 @@
                     ✦
                 </span>
 
+
                 <div>
-                    <h2 id="ai-title">
+
+                    <h2
+                        id="ai-title"
+                    >
                         مساعد التنين الذكي
                     </h2>
 
-                    <span class="coming-soon-badge">
+
+                    <span
+                        class="coming-soon-badge"
+                    >
                         قريباً
                     </span>
+
                 </div>
 
             </div>
 
 
+
             <p>
-                مستقبلاً سيتمكن مساعد التنين الذكي من اقتراح المنتجات
-                المتوافقة مع سيارتك مباشرة من متجر Smart Dragon.
+                سيتمكن مساعد التنين الذكي مستقبلاً من اقتراح
+                المنتجات المناسبة لسيارتك اعتماداً على بيانات
+                التوافق الموثقة.
             </p>
 
 
-            <div class="ai-feature-preview">
+
+            <div
+                class="ai-feature-preview"
+            >
 
                 <span>
                     اقتراح منتجات متوافقة
                 </span>
 
+
                 <span>
                     مطابقة ذكية حسب السيارة
                 </span>
+
 
                 <span>
                     ربط مع متجر Smart Dragon
@@ -317,12 +476,11 @@
             </div>
 
 
-            <!--
-                =========================================================
-                FUTURE SMART DRAGON AI INTEGRATION
-                =========================================================
 
-                This section is intentionally preserved.
+            <!--
+                =================================================
+                FUTURE SMART DRAGON AI INTEGRATION
+                =================================================
 
                 Planned integrations:
 
@@ -330,29 +488,26 @@
                 - Smart Dragon MCP
                 - smartdragonjo.com product catalogue
 
-                Future workflow:
 
-                1. The customer selects:
-                   Make -> Model -> Year.
+                Required workflow:
 
-                2. The vehicle is resolved from VERIFIED database records.
+                Vehicle selection
+                ↓
+                Verified fitment data
+                ↓
+                Smart Dragon AI context
+                ↓
+                Product recommendations
 
-                3. The selected vehicle context is passed to the
-                   Smart Dragon AI integration.
 
-                4. The AI MUST NOT invent vehicle compatibility data.
+                IMPORTANT:
 
-                5. Vehicle fitment must always come from approved
-                   database records.
+                AI must NEVER invent compatibility data.
 
-                6. AI may then use the verified vehicle context to:
+                Vehicle compatibility must always come from
+                verified Smart Dragon vehicle records.
 
-                   - Find compatible store products.
-                   - Recommend products related to the user's query.
-                   - Link relevant products from smartdragonjo.com.
-                   - Provide additional shopping assistance.
-
-                DO NOT REMOVE THIS SECTION DURING REFACTORING.
+                DO NOT REMOVE THIS SECTION.
             -->
 
         </section>
@@ -360,93 +515,116 @@
     </main>
 
 
+
     <!-- =========================================================
          Footer
          ========================================================= -->
-    <footer class="app-footer">
+
+    <footer
+        class="app-footer"
+    >
 
         <p>
             Smart Dragon Jordan
         </p>
 
-        <p class="footer-development-status">
-            نسخة تجريبية قيد التطوير
+
+        <p
+            class="footer-development-status"
+        >
+            نسخة تجريبية عامة
         </p>
 
     </footer>
+
 
 
     <!-- =========================================================
          Application Scripts
          ========================================================= -->
 
+
     <!--
-        Global application configuration.
-
-        APP_MODE will initially be set to "development".
-
-        Firebase will NOT be initialized during this stage.
+        Main application configuration
     -->
+
     <script
         src="js/app-config.js"
         defer
     ></script>
 
-<script
-    src="js/firebase/config.js"
-    defer
-></script>
 
-<script
-    src="js/firebase/auth.js"
-    defer
-></script>
 
-<script
-    src="js/firebase/firestore.js"
-    defer
-></script>
+    <!--
+        Firebase Web configuration.
 
-    <!-- Vehicle selection controller -->
+        Web configuration is public by design.
+        Access is controlled by Firestore Security Rules.
+    -->
+
     <script
-        src="js/vehicle-selector.js"
+        src="js/firebase/config.js"
         defer
     ></script>
 
 
-    <!-- Vehicle result renderer -->
-    <script
-        src="js/vehicle-results.js"
-        defer
-    ></script>
 
-    <script
-    src="js/accessory-links.js"
-    defer
-></script>
+    <!--
+        Shared input validation
+    -->
 
-
-    <!-- Shared input validation -->
     <script
         src="js/validation.js"
         defer
     ></script>
 
 
+
     <!--
-        =========================================================
-        Future AI Integration Module
-        =========================================================
-
-        This script currently contains NO live AI/API connection.
-
-        It exists intentionally to establish the integration layer
-        for Smart Dragon API + Smart Dragon MCP in a future release.
+        Real read-only Firestore integration
+        with the existing cars collection.
     -->
+
+    <script
+        src="js/accessory-links.js"
+        defer
+    ></script>
+
+
+
+    <!--
+        Vehicle results renderer
+    -->
+
+    <script
+        src="js/vehicle-results.js"
+        defer
+    ></script>
+
+
+
+    <!--
+        Vehicle selector / local structured
+        compatibility-data provider
+    -->
+
+    <script
+        src="js/vehicle-selector.js"
+        defer
+    ></script>
+
+
+
+    <!-- =========================================================
+         Future Smart Dragon AI
+         ========================================================= -->
+
     <script
         src="js/ai/smart-dragon-ai.js"
         defer
     ></script>
 
+
 </body>
+
 </html>
