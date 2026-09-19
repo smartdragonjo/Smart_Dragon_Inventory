@@ -178,41 +178,388 @@ function setVehicleSelectorEnabled(enabled) {
  * Later, Firebase/Firestore logic should be connected here
  * instead of being mixed directly into UI event handlers.
  */
-const VehicleDataProvider = {
+const VehicleDataProvider = (() => {
+    let recordsCache = null;
 
-    async getMakes() {
-        return [];
-    },
+    async function loadRecords() {
+        if (recordsCache) {
+            return recordsCache;
+        }
 
+        const response = await fetch(
+            "data/vehicles.json",
+            {
+                cache: "no-store"
+            }
+        );
 
-    async getModels(make) {
-        void make;
+        if (!response.ok) {
+            throw new Error(
+                `Failed to load vehicles.json: ${response.status}`
+            );
+        }
 
-        return [];
-    },
+        const data = await response.json();
 
+        if (!Array.isArray(data)) {
+            throw new Error(
+                "vehicles.json must contain an array."
+            );
+        }
 
-    async getYears(make, model) {
-        void make;
-        void model;
+        recordsCache = data;
 
-        return [];
-    },
+        console.info(
+            `[Smart Dragon] Loaded ${recordsCache.length} local vehicle records.`
+        );
 
-
-    async getVehicleResult(
-        make,
-        model,
-        year
-    ) {
-        void make;
-        void model;
-        void year;
-
-        return null;
+        return recordsCache;
     }
 
-};
+
+    function getFitment(record, slug) {
+        const fitments =
+            Array.isArray(record?.fitments)
+                ? record.fitments
+                : [];
+
+        return (
+            fitments.find(
+                (item) =>
+                    item?.categorySlug === slug
+            ) || null
+        );
+    }
+
+
+    function bulbValue(field) {
+        if (!field) {
+            return "غير متوفر";
+        }
+
+        if (field.notApplicable) {
+            return "غير منطبق / لا يوجد";
+        }
+
+        if (field.code) {
+            if (
+                Array.isArray(field.aliases) &&
+                field.aliases.length > 0
+            ) {
+                return `${field.code} (${field.aliases.join(", ")})`;
+            }
+
+            return field.code;
+        }
+
+        return (
+            field.raw ||
+            field.notes ||
+            "غير متوفر"
+        );
+    }
+
+
+    function wiperValue(field) {
+        if (!field) {
+            return "غير متوفر";
+        }
+
+        if (
+            field.value !== null &&
+            field.value !== undefined
+        ) {
+            return `${field.value} inch`;
+        }
+
+        return (
+            field.raw ||
+            "غير متوفر"
+        );
+    }
+
+
+    function screenValue(field) {
+        if (!field) {
+            return "غير متوفر";
+        }
+
+        return (
+            field.raw ||
+            field.notes ||
+            "غير متوفر"
+        );
+    }
+
+
+    return {
+
+        async getMakes() {
+            const records =
+                await loadRecords();
+
+            return [
+                ...new Set(
+                    records
+                        .map(
+                            (record) =>
+                                record?.vehicle?.make
+                        )
+                        .filter(Boolean)
+                )
+            ].sort();
+        },
+
+
+        async getModels(make) {
+            const records =
+                await loadRecords();
+
+            return [
+                ...new Set(
+                    records
+                        .filter(
+                            (record) =>
+                                record?.vehicle?.make === make
+                        )
+                        .map(
+                            (record) =>
+                                record?.vehicle?.model
+                        )
+                        .filter(Boolean)
+                )
+            ].sort();
+        },
+
+
+        async getYears(make, model) {
+            const records =
+                await loadRecords();
+
+            const years =
+                new Set();
+
+            records
+                .filter(
+                    (record) =>
+                        record?.vehicle?.make === make &&
+                        record?.vehicle?.model === model
+                )
+                .forEach((record) => {
+                    const start =
+                        Number(
+                            record.vehicle.yearStart
+                        );
+
+                    const end =
+                        Number(
+                            record.vehicle.yearEnd
+                        );
+
+                    if (
+                        !Number.isInteger(start) ||
+                        !Number.isInteger(end)
+                    ) {
+                        return;
+                    }
+
+                    for (
+                        let year = start;
+                        year <= end;
+                        year += 1
+                    ) {
+                        years.add(year);
+                    }
+                });
+
+            return [...years].sort(
+                (a, b) => b - a
+            );
+        },
+
+
+        async getVehicleResult(
+            make,
+            model,
+            year
+        ) {
+            const records =
+                await loadRecords();
+
+            const matches =
+                records.filter(
+                    (record) => {
+                        const vehicle =
+                            record?.vehicle;
+
+                        return (
+                            vehicle?.make === make &&
+                            vehicle?.model === model &&
+                            year >= vehicle.yearStart &&
+                            year <= vehicle.yearEnd
+                        );
+                    }
+                );
+
+
+            if (matches.length === 0) {
+                return null;
+            }
+
+
+            if (matches.length > 1) {
+                return {
+                    vehicle: {
+                        make,
+                        model,
+                        year
+                    },
+
+                    categories: [
+                        {
+                            name: "تنبيه مراجعة",
+
+                            items: [
+                                {
+                                    label: "الحالة",
+
+                                    value:
+                                        "يوجد أكثر من سجل يطابق هذه السنة."
+                                },
+
+                                {
+                                    label:
+                                        "عدد السجلات المطابقة",
+
+                                    value:
+                                        matches.length
+                                }
+                            ]
+                        }
+                    ]
+                };
+            }
+
+
+            const record =
+                matches[0];
+
+            const lighting =
+                getFitment(
+                    record,
+                    "lighting"
+                );
+
+            const wipers =
+                getFitment(
+                    record,
+                    "wipers"
+                );
+
+            const screens =
+                getFitment(
+                    record,
+                    "screens"
+                );
+
+
+            return {
+                vehicle: {
+                    make:
+                        record.vehicle.make,
+
+                    model:
+                        record.vehicle.model,
+
+                    year,
+
+                    yearStart:
+                        record.vehicle.yearStart,
+
+                    yearEnd:
+                        record.vehicle.yearEnd
+                },
+
+                categories: [
+                    {
+                        name: "اللمبات",
+
+                        items: [
+                            {
+                                label: "الواطي",
+
+                                value:
+                                    bulbValue(
+                                        lighting?.fields?.lowBeam
+                                    )
+                            },
+
+                            {
+                                label: "العالي",
+
+                                value:
+                                    bulbValue(
+                                        lighting?.fields?.highBeam
+                                    )
+                            },
+
+                            {
+                                label: "الضباب",
+
+                                value:
+                                    bulbValue(
+                                        lighting?.fields?.fogLight
+                                    )
+                            }
+                        ]
+                    },
+
+                    {
+                        name: "المساحات",
+
+                        items: [
+                            {
+                                label:
+                                    "جهة السائق",
+
+                                value:
+                                    wiperValue(
+                                        wipers?.fields?.driver
+                                    )
+                            },
+
+                            {
+                                label:
+                                    "جهة الراكب",
+
+                                value:
+                                    wiperValue(
+                                        wipers?.fields?.passenger
+                                    )
+                            }
+                        ]
+                    },
+
+                    {
+                        name: "الشاشات",
+
+                        items: [
+                            {
+                                label:
+                                    "المقاس / النوع",
+
+                                value:
+                                    screenValue(
+                                        screens?.fields?.screen
+                                    )
+                            }
+                        ]
+                    }
+                ]
+            };
+        }
+    };
+})();
 
 
 /**
@@ -609,27 +956,30 @@ function initializeVehicleSelector() {
      * Development mode:
      * Keep everything disabled.
      */
-    if (
-        config.APP_MODE === "development" ||
-        !config.FEATURES.vehicleSearch
-    ) {
+    const localPreviewEnabled =
+    config.APP_MODE === "development" &&
+    config.FEATURES.localDataPreview;
 
-        setVehicleSelectorEnabled(false);
+const productionSearchEnabled =
+    config.APP_MODE === "production" &&
+    config.FEATURES.vehicleSearch;
 
+if (
+    !localPreviewEnabled &&
+    !productionSearchEnabled
+) {
+    setVehicleSelectorEnabled(false);
 
-        console.info(
-            "[Smart Dragon] Vehicle selector is disabled in development mode."
-        );
+    console.info(
+        "[Smart Dragon] Vehicle selector is disabled."
+    );
 
+    return;
+}
 
-        return;
-    }
+setVehicleSelectorEnabled(true);
 
-
-    /**
-     * Production / enabled state.
-     */
-    loadMakes();
+loadMakes();
 
 }
 
