@@ -439,6 +439,46 @@ function renderVehicleResult(result) {
 
 }
 
+function renderLoadingState() {
+
+    const container =
+        getResultsContainer();
+
+    if (!container) {
+        return;
+    }
+
+    clearElement(container);
+
+    container.className =
+        "results-placeholder results-placeholder--loading";
+
+    const icon =
+        createElement(
+            "div",
+            "results-placeholder__icon"
+        );
+
+    icon.textContent = "◌";
+
+    const title =
+        createElement("h3");
+
+    title.textContent =
+        "جاري تحميل بيانات التوافق";
+
+    const text =
+        createElement("p");
+
+    text.textContent =
+        "يتم الآن تجهيز بيانات السيارة المختارة.";
+
+    container.append(
+        icon,
+        title,
+        text
+    );
+}
 
 /**
  * Public API.
@@ -448,6 +488,9 @@ window.SmartDragonVehicleResults =
 
         render:
             renderVehicleResult,
+
+        renderLoading:
+            renderLoadingState,
 
         renderEmpty:
             renderEmptyState

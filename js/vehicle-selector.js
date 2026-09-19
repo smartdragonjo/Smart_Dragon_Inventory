@@ -851,6 +851,16 @@ async function handleVehicleSearch() {
             false
         );
 
+        if (
+    window.SmartDragonVehicleResults &&
+    typeof window
+        .SmartDragonVehicleResults
+        .renderLoading === "function"
+) {
+    window
+        .SmartDragonVehicleResults
+        .renderLoading();
+}
 
         const result =
             await VehicleDataProvider
