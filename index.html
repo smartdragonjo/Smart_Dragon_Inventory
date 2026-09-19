@@ -1,124 +1,630 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>محرك بحث التنين الذكي</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; background-color: #f9f9f9; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .logo { margin-top: 50px; width: 200px; }
-        .tagline { color: #2e7d32; font-weight: bold; margin-bottom: 30px; font-size: 1.2rem; }
-        .search-container { width: 100%; max-width: 600px; text-align: center; }
-        input { padding: 15px; width: 100%; border: 1px solid #ccc; border-radius: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-size: 16px; outline: none; margin-bottom: 15px; }
-        
-        .filters { margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-        .filter-btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 20px; background: #2e7d32; color: white; font-weight: bold; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .filter-btn:hover { background: #1b5e20; }
-        .filter-btn.active { background: #1b5e20; transform: scale(1.05); }
 
-        #results-container { width: 100%; max-width: 600px; margin-top: 10px; }
-        .card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-right: 5px solid #2e7d32; }
-        .info-label { font-weight: bold; color: #000; }
-    </style>
-    <!-- قبل </head> -->
-<link rel="stylesheet"
-      href="https://smartdragonjo.com/portal/apps-launcher/smart-dragon-launcher.css?v=1.4">
+<html
+    lang="ar"
+    dir="rtl"
+>
+
+<head>
+
+    <meta
+        charset="UTF-8"
+    >
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+
+    <meta
+        name="description"
+        content="محرك بحث التنين الذكي لمعرفة توافق قطع وتجهيزات السيارات - Smart Dragon Jordan"
+    >
+
+
+    <title>
+        محرك بحث التنين الذكي | Smart Dragon
+    </title>
+
+
+    <!-- =========================================================
+         Smart Dragon Inventory
+         Public Beta
+         ========================================================= -->
+
+
+    <link
+        rel="stylesheet"
+        href="css/app.css"
+    >
+
+
+    <!-- =========================================================
+         Smart Dragon Apps Launcher
+         ========================================================= -->
+
+    <link
+        rel="stylesheet"
+        href="https://smartdragonjo.com/portal/apps-launcher/smart-dragon-launcher.css?v=1.4"
+    >
+
 </head>
+
+
 <body>
 
-    <div id="smart-dragon-launcher" data-role="customer"></div>
 
-<script
-  src="https://smartdragonjo.com/portal/apps-launcher/smart-dragon-launcher.js?v=1.4"
-  defer>
-</script>
+    <!-- =========================================================
+         Smart Dragon Customer Apps Launcher
+         ========================================================= -->
 
-    <img src="logo.png" alt="لوغو التنين الذكي" class="logo" onerror="this.src='https://via.placeholder.com/200'">
-    <div class="tagline">محرك بحث التنين الذكي عن قطع الغيار (BETA)</div>
-    
-    <div class="search-container">
-        <input type="text" id="searchInput" placeholder="ابحث (مثال: فيوجن 2019)..." oninput="filterData()">
-        <div class="filters">
-            <button class="filter-btn active" onclick="setFilter('all', this)">الكل</button>
-            <button class="filter-btn" onclick="setFilter('bulbs', this)">لمبات</button>
-            <button class="filter-btn" onclick="setFilter('screens', this)">شاشات</button>
-            <button class="filter-btn" onclick="setFilter('wipers', this)">مساحات</button>
+    <div
+        id="smart-dragon-launcher"
+        data-role="customer"
+    ></div>
+
+
+    <script
+        src="https://smartdragonjo.com/portal/apps-launcher/smart-dragon-launcher.js?v=1.4"
+        defer
+    ></script>
+
+
+
+    <!-- =========================================================
+         Public Beta Notice
+         ========================================================= -->
+
+    <div
+        class="development-banner"
+        role="status"
+        aria-live="polite"
+    >
+
+        <div
+            class="development-banner__icon"
+            aria-hidden="true"
+        >
+            ℹ
         </div>
+
+
+        <div
+            class="development-banner__content"
+        >
+
+            <strong>
+                نسخة تجريبية عامة
+            </strong>
+
+
+            <span>
+                محرك البحث متاح للاستخدام حالياً،
+                ويتم تحديث وتوسيع بيانات التوافق بشكل مستمر.
+            </span>
+
+        </div>
+
     </div>
 
-    <div id="results-container"></div>
 
-    <script>
-        let fullData = [];
-        let activeFilter = 'all';
 
-        function toArabicNumbers(str) {
-            return str.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
-                      .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
-        }
+    <!-- =========================================================
+         Main Application
+         ========================================================= -->
 
-        function normalize(text) {
-            if (!text) return "";
-            let normalized = toArabicNumbers(text.toString().toLowerCase());
-            return normalized.replace(/(أ|إ|آ)/g, 'ا').replace(/(ة)/g, 'ه').replace(/(ى)/g, 'ي');
-        }
+    <main
+        class="app"
+    >
 
-        fetch('data.csv')
-            .then(response => response.text())
-            .then(csvText => {
-                Papa.parse(csvText, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: (results) => { fullData = results.data; }
-                });
-            });
 
-        function setFilter(filter, btn) {
-            activeFilter = filter;
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filterData();
-        }
+        <!-- =====================================================
+             Header
+             ===================================================== -->
 
-        function filterData() {
-            const rawQuery = document.getElementById('searchInput').value.trim();
-            const container = document.getElementById('results-container');
-            if (rawQuery === "") { container.innerHTML = ""; return; }
-            
-            const normalizedRawQuery = normalize(rawQuery);
-            const queryWords = normalizedRawQuery.split(/\s+/);
-            const searchYear = normalizedRawQuery.match(/\d{4}/) ? parseInt(normalizedRawQuery.match(/\d{4}/)[0]) : null;
+        <header
+            class="app-header"
+        >
 
-            const filtered = fullData.filter(item => {
-                const itemData = normalize(Object.values(item).join(' '));
-                
-                // البحث في الكلمات (الاسم)
-                const nameMatches = queryWords.every(word => {
-                    if (word.match(/^\d{4}$/)) return true; // نتجاهل السنة هنا لأننا سنفحصها رياضياً
-                    return itemData.includes(word);
-                });
 
-                // التحقق من السنة ضمن المدى (Range)
-                let yearMatches = true;
-                if (searchYear) {
-                    const start = parseInt(item.Year_Start);
-                    const end = parseInt(item.Year_End);
-                    yearMatches = (searchYear >= start && searchYear <= end);
-                }
+            <img
+                src="logo.png"
+                alt="شعار التنين الذكي"
+                class="app-logo"
+            >
 
-                return nameMatches && yearMatches;
-            });
 
-            container.innerHTML = filtered.map(item => `
-                <div class="card">
-                    <h3>${item.Make || ''} ${item.Model || ''} (${item.Year_Start || ''} - ${item.Year_End || ''})</h3>
-                    ${(activeFilter === 'all' || activeFilter === 'bulbs') ? `<p><span class="info-label">اللمبات:</span> ${item.Low_Beam_Bulb || 'لا يوجد'}</p>` : ''}
-                    ${(activeFilter === 'all' || activeFilter === 'wipers') ? `<p><span class="info-label">المساحات:</span> ${item.Wiper_Driver_Inch || 'N/A'} / ${item.Wiper_Passenger_Inch || 'N/A'}</p>` : ''}
-                    ${(activeFilter === 'all' || activeFilter === 'screens') ? `<p><span class="info-label">الشاشات:</span> ${item.Screen_Frame_Type_Size || 'لا يوجد'}</p>` : ''}
+            <div
+                class="brand-content"
+            >
+
+                <h1>
+                    محرك بحث التنين الذكي
+                </h1>
+
+
+                <p
+                    class="tagline"
+                >
+                    ابحث عن القطع والتجهيزات المتوافقة مع سيارتك
+                </p>
+
+
+                <span
+                    class="beta-badge"
+                >
+                    PUBLIC BETA
+                </span>
+
+            </div>
+
+        </header>
+
+
+
+        <!-- =====================================================
+             Vehicle Selector
+             ===================================================== -->
+
+        <section
+            class="vehicle-search-card"
+            aria-labelledby="vehicle-search-title"
+        >
+
+
+            <div
+                class="section-heading"
+            >
+
+
+                <span
+                    class="section-heading__number"
+                >
+                    1
+                </span>
+
+
+                <div>
+
+                    <h2
+                        id="vehicle-search-title"
+                    >
+                        اختر سيارتك
+                    </h2>
+
+
+                    <p>
+                        حدد الشركة ثم الموديل ثم سنة الصنع
+                        للحصول على بيانات التوافق.
+                    </p>
+
                 </div>
-            `).join('') || '<p style="text-align:center;">لا توجد نتائج مطابقة لهذه السنة والموديل.</p>';
-        }
-    </script>
+
+            </div>
+
+
+
+            <div
+                class="vehicle-selector"
+            >
+
+
+                <!-- Manufacturer -->
+
+                <div
+                    class="form-group"
+                >
+
+                    <label
+                        for="vehicleMake"
+                    >
+                        الشركة المصنعة
+                    </label>
+
+
+                    <select
+                        id="vehicleMake"
+                        name="vehicleMake"
+                        disabled
+                        aria-disabled="true"
+                    >
+
+                        <option
+                            value=""
+                        >
+                            اختر الشركة
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+
+                <!-- Model -->
+
+                <div
+                    class="form-group"
+                >
+
+                    <label
+                        for="vehicleModel"
+                    >
+                        الموديل
+                    </label>
+
+
+                    <select
+                        id="vehicleModel"
+                        name="vehicleModel"
+                        disabled
+                        aria-disabled="true"
+                    >
+
+                        <option
+                            value=""
+                        >
+                            اختر الموديل
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+
+                <!-- Year -->
+
+                <div
+                    class="form-group"
+                >
+
+                    <label
+                        for="vehicleYear"
+                    >
+                        سنة الصنع
+                    </label>
+
+
+                    <select
+                        id="vehicleYear"
+                        name="vehicleYear"
+                        disabled
+                        aria-disabled="true"
+                    >
+
+                        <option
+                            value=""
+                        >
+                            اختر السنة
+                        </option>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+
+
+            <button
+                id="searchVehicleButton"
+                class="primary-button"
+                type="button"
+                disabled
+                aria-disabled="true"
+            >
+                عرض بيانات السيارة
+            </button>
+
+
+            <p
+                class="development-note"
+            >
+                اختر بيانات سيارتك للحصول على معلومات
+                التوافق المتوفرة حالياً.
+            </p>
+
+        </section>
+
+
+
+        <!-- =====================================================
+             Results
+             ===================================================== -->
+
+        <section
+            id="vehicleResultsSection"
+            class="results-section"
+            aria-labelledby="results-title"
+        >
+
+
+            <div
+                class="section-heading"
+            >
+
+
+                <span
+                    class="section-heading__number"
+                >
+                    2
+                </span>
+
+
+                <div>
+
+                    <h2
+                        id="results-title"
+                    >
+                        بيانات التوافق
+                    </h2>
+
+
+                    <p>
+                        ستظهر هنا بيانات القطع والتجهيزات
+                        الخاصة بالسيارة المختارة.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+
+            <div
+                id="resultsContainer"
+                class="results-placeholder"
+            >
+
+
+                <div
+                    class="results-placeholder__icon"
+                    aria-hidden="true"
+                >
+                    🚗
+                </div>
+
+
+                <h3>
+                    لم يتم اختيار سيارة
+                </h3>
+
+
+                <p>
+                    اختر الشركة والموديل والسنة لعرض بيانات التوافق.
+                </p>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =====================================================
+             Future Smart Dragon AI
+             ===================================================== -->
+
+        <section
+            id="smartDragonAiSection"
+            class="ai-preview-card"
+            aria-labelledby="ai-title"
+        >
+
+
+            <div
+                class="ai-preview-card__header"
+            >
+
+
+                <span
+                    class="ai-preview-card__icon"
+                    aria-hidden="true"
+                >
+                    ✦
+                </span>
+
+
+                <div>
+
+                    <h2
+                        id="ai-title"
+                    >
+                        مساعد التنين الذكي
+                    </h2>
+
+
+                    <span
+                        class="coming-soon-badge"
+                    >
+                        قريباً
+                    </span>
+
+                </div>
+
+            </div>
+
+
+
+            <p>
+                سيتمكن مساعد التنين الذكي مستقبلاً من اقتراح
+                المنتجات المناسبة لسيارتك اعتماداً على بيانات
+                التوافق الموثقة.
+            </p>
+
+
+
+            <div
+                class="ai-feature-preview"
+            >
+
+                <span>
+                    اقتراح منتجات متوافقة
+                </span>
+
+
+                <span>
+                    مطابقة ذكية حسب السيارة
+                </span>
+
+
+                <span>
+                    ربط مع متجر Smart Dragon
+                </span>
+
+            </div>
+
+
+
+            <!--
+                =================================================
+                FUTURE SMART DRAGON AI INTEGRATION
+                =================================================
+
+                Planned integrations:
+
+                - Smart Dragon API
+                - Smart Dragon MCP
+                - smartdragonjo.com product catalogue
+
+
+                Required workflow:
+
+                Vehicle selection
+                ↓
+                Verified fitment data
+                ↓
+                Smart Dragon AI context
+                ↓
+                Product recommendations
+
+
+                IMPORTANT:
+
+                AI must NEVER invent compatibility data.
+
+                Vehicle compatibility must always come from
+                verified Smart Dragon vehicle records.
+
+                DO NOT REMOVE THIS SECTION.
+            -->
+
+        </section>
+
+    </main>
+
+
+
+    <!-- =========================================================
+         Footer
+         ========================================================= -->
+
+    <footer
+        class="app-footer"
+    >
+
+        <p>
+            Smart Dragon Jordan
+        </p>
+
+
+        <p
+            class="footer-development-status"
+        >
+            نسخة تجريبية عامة
+        </p>
+
+    </footer>
+
+
+
+    <!-- =========================================================
+         Application Scripts
+         ========================================================= -->
+
+
+    <!--
+        Main application configuration
+    -->
+
+    <script
+        src="js/app-config.js"
+        defer
+    ></script>
+
+
+
+    <!--
+        Firebase Web configuration.
+
+        Web configuration is public by design.
+        Access is controlled by Firestore Security Rules.
+    -->
+
+    <script
+        src="js/firebase/config.js"
+        defer
+    ></script>
+
+
+
+    <!--
+        Shared input validation
+    -->
+
+    <script
+        src="js/validation.js"
+        defer
+    ></script>
+
+
+
+    <!--
+        Real read-only Firestore integration
+        with the existing cars collection.
+    -->
+
+    <script
+        src="js/accessory-links.js"
+        defer
+    ></script>
+
+
+
+    <!--
+        Vehicle results renderer
+    -->
+
+    <script
+        src="js/vehicle-results.js"
+        defer
+    ></script>
+
+
+
+    <!--
+        Vehicle selector / local structured
+        compatibility-data provider
+    -->
+
+    <script
+        src="js/vehicle-selector.js"
+        defer
+    ></script>
+
+
+
+    <!-- =========================================================
+         Future Smart Dragon AI
+         ========================================================= -->
+
+    <script
+        src="js/ai/smart-dragon-ai.js"
+        defer
+    ></script>
+
+
 </body>
+
 </html>
