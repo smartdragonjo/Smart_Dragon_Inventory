@@ -6,6 +6,10 @@
  * DOM APIs + textContent only.
  */
 
+
+/**
+ * Get results container.
+ */
 function getResultsContainer() {
 
     return document.getElementById(
@@ -14,6 +18,9 @@ function getResultsContainer() {
 }
 
 
+/**
+ * Clear an element safely.
+ */
 function clearElement(element) {
 
     if (!element) {
@@ -24,6 +31,9 @@ function clearElement(element) {
 }
 
 
+/**
+ * Create a DOM element.
+ */
 function createElement(
     tagName,
     className = ""
@@ -43,6 +53,9 @@ function createElement(
 }
 
 
+/**
+ * Render empty result state.
+ */
 function renderEmptyState() {
 
     const container =
@@ -52,9 +65,11 @@ function renderEmptyState() {
         return;
     }
 
+
     clearElement(
         container
     );
+
 
     container.className =
         "results-placeholder";
@@ -71,14 +86,18 @@ function renderEmptyState() {
 
 
     const title =
-        createElement("h3");
+        createElement(
+            "h3"
+        );
 
     title.textContent =
         "لم يتم العثور على بيانات";
 
 
     const text =
-        createElement("p");
+        createElement(
+            "p"
+        );
 
     text.textContent =
         "لا توجد بيانات توافق معتمدة لهذه السيارة حالياً.";
@@ -92,6 +111,9 @@ function renderEmptyState() {
 }
 
 
+/**
+ * Render loading state.
+ */
 function renderLoadingState() {
 
     const container =
@@ -101,9 +123,11 @@ function renderLoadingState() {
         return;
     }
 
+
     clearElement(
         container
     );
+
 
     container.className =
         "results-placeholder results-placeholder--loading";
@@ -120,14 +144,18 @@ function renderLoadingState() {
 
 
     const title =
-        createElement("h3");
+        createElement(
+            "h3"
+        );
 
     title.textContent =
         "جاري تحميل بيانات التوافق";
 
 
     const text =
-        createElement("p");
+        createElement(
+            "p"
+        );
 
     text.textContent =
         "يتم الآن تجهيز بيانات السيارة المختارة.";
@@ -141,6 +169,9 @@ function renderLoadingState() {
 }
 
 
+/**
+ * Render one fitment row.
+ */
 function createFitmentRow(item) {
 
     const row =
@@ -215,10 +246,12 @@ function createFitmentRow(item) {
                 "fitment-row__hint"
             );
 
+
         hint.textContent =
             String(
                 item.hint
             );
+
 
         valueWrapper.appendChild(
             hint
@@ -236,6 +269,9 @@ function createFitmentRow(item) {
 }
 
 
+/**
+ * Render one dynamic category.
+ */
 function createCategoryCard(
     category
 ) {
@@ -252,6 +288,7 @@ function createCategoryCard(
             "h3",
             "fitment-category__title"
         );
+
 
     title.textContent =
         category?.name ||
@@ -300,8 +337,10 @@ function createCategoryCard(
                 "fitment-category__empty"
             );
 
+
         empty.textContent =
             "لا توجد بيانات ضمن هذا الصنف.";
+
 
         list.appendChild(
             empty
@@ -318,6 +357,9 @@ function createCategoryCard(
 }
 
 
+/**
+ * Create overlap/review warning notice.
+ */
 function createNotice(
     message,
     blocking = false
@@ -339,7 +381,10 @@ function createNotice(
 
 
     const text =
-        createElement("p");
+        createElement(
+            "p"
+        );
+
 
     text.textContent =
         message;
@@ -354,6 +399,9 @@ function createNotice(
 }
 
 
+/**
+ * Main vehicle result renderer.
+ */
 function renderVehicleResult(
     result
 ) {
@@ -398,6 +446,9 @@ function renderVehicleResult(
         {};
 
 
+    /**
+     * Vehicle header.
+     */
     const header =
         createElement(
             "div",
@@ -440,6 +491,9 @@ function renderVehicleResult(
     );
 
 
+    /**
+     * Approved compatibility range.
+     */
     if (
         vehicle.yearStart &&
         vehicle.yearEnd
@@ -487,6 +541,9 @@ function renderVehicleResult(
     }
 
 
+    /**
+     * Dynamic categories.
+     */
     const categories =
         Array.isArray(
             result.categories
@@ -525,6 +582,7 @@ function renderVehicleResult(
                 "vehicle-result__empty"
             );
 
+
         empty.textContent =
             "لا توجد بيانات توافق معتمدة لهذه السيارة.";
 
@@ -538,6 +596,31 @@ function renderVehicleResult(
     container.appendChild(
         categoryContainer
     );
+
+
+    /**
+     * Local accessory-link integration.
+     *
+     * Only show the accessory button when:
+     * - the vehicle match is valid
+     * - there is no blocking overlap
+     * - accessory-links.js is loaded
+     */
+    if (
+        !meta.blockingWarning &&
+        window.SmartDragonAccessoryLinks &&
+        typeof window
+            .SmartDragonAccessoryLinks
+            .renderForVehicle ===
+            "function"
+    ) {
+
+        window
+            .SmartDragonAccessoryLinks
+            .renderForVehicle(
+                vehicle
+            );
+    }
 
 
     /**
@@ -563,6 +646,9 @@ function renderVehicleResult(
 }
 
 
+/**
+ * Public API.
+ */
 window.SmartDragonVehicleResults =
     Object.freeze({
 

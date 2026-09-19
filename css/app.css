@@ -961,3 +961,56 @@ textarea {
         gap: 5px;
     }
 }
+
+/* =========================================================
+   Vehicle Accessory Link
+   ========================================================= */
+
+.vehicle-accessory-link {
+    margin-top: 4px;
+
+    padding-top: 16px;
+
+    border-top:
+        1px solid var(--border);
+}
+
+.vehicle-accessory-link__button {
+    width: 100%;
+
+    min-height: 50px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 10px 18px;
+
+    border-radius:
+        var(--radius-sm);
+
+    background:
+        var(--green);
+
+    color: #ffffff;
+
+    text-decoration: none;
+
+    font-weight: 700;
+
+    text-align: center;
+
+    transition:
+        background var(--transition),
+        transform var(--transition);
+}
+
+.vehicle-accessory-link__button:hover {
+    background:
+        var(--green-light);
+
+    transform:
+        translateY(-1px);
+}

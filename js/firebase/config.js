@@ -1,73 +1,67 @@
 /**
- * =========================================================
- * Smart Dragon Inventory
- * Firebase Configuration Placeholder
- * =========================================================
+ * Smart Dragon Firebase Web Configuration
  *
- * Firebase is intentionally NOT connected yet.
- *
- * DO NOT place:
- * - Service Account JSON
- * - Private keys
- * - Admin credentials
- * - Secret tokens
- * inside frontend files or GitHub.
- *
- * Future integration may reuse the existing
- * "smart-dragon-search" Firebase project after
- * security rules are reviewed.
+ * Web config is not a secret.
+ * Security is enforced by Firebase Authentication
+ * and Firestore Security Rules.
  */
 
-window.SmartDragonFirebaseConfig = Object.freeze({
+window.SmartDragonFirebaseConfig =
+    Object.freeze({
 
-    enabled: false,
+        enabled: true,
 
-    projectConfigured: false,
+        projectConfigured: true,
 
-    /**
-     * Public Firebase web config will be placed here later.
-     *
-     * Example only:
-     *
-     * firebaseConfig: {
-     *   apiKey: "...",
-     *   authDomain: "...",
-     *   projectId: "...",
-     *   storageBucket: "...",
-     *   messagingSenderId: "...",
-     *   appId: "..."
-     * }
-     */
-    firebaseConfig: null,
+        config: Object.freeze({
+            apiKey:
+                "AIzaSyDBw9UD-7L-2KJlKvSdBs-jZV22uSyOECI",
 
-    /**
-     * Planned collection names.
-     *
-     * Existing Firebase project already uses:
-     * - cars
-     *
-     * These new collections are reserved for the
-     * Smart Dragon Inventory system.
-     */
-    collections: Object.freeze({
+            authDomain:
+                "smart-dragon-search.firebaseapp.com",
 
-        vehicles: "vehicles",
+            projectId:
+                "smart-dragon-search",
 
-        categories: "categories",
+            storageBucket:
+                "smart-dragon-search.firebasestorage.app",
 
-        changeRequests: "change_requests",
+            messagingSenderId:
+                "771483738093",
 
-        users: "users",
+            appId:
+                "1:771483738093:web:6d69177091ae6d3984d1e4"
+        }),
 
-        auditLogs: "audit_logs",
+        collections:
+            Object.freeze({
 
-        backups: "backups",
+                vehicles:
+                    "vehicles",
 
-        /**
-         * Existing collection from Smart Dragon Search.
-         */
-        accessoryLinks: "cars"
+                categories:
+                    "categories",
 
-    })
+                changeRequests:
+                    "change_requests",
 
-});
+                users:
+                    "users",
+
+                auditLogs:
+                    "audit_logs",
+
+                backups:
+                    "backups",
+
+                vehicleFitments:
+                    "vehicle_fitments",
+
+                /**
+                 * Existing collection used by:
+                 * https://smartdragonjo.com/search
+                 */
+                accessoryLinks:
+                    "cars"
+            })
+    });
