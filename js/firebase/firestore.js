@@ -212,16 +212,19 @@
     }
 
     async function checkVehicleConflicts(vehicleId, payload) {
-        authContext();
+        const { profile } = authContext();
         const vehicle = validateVehiclePayload(payload?.vehicle || payload);
         const currentId = vehicleId ? String(vehicleId) : null;
         const makeKey = vehicleKey(vehicle.make, 100);
         const modelKey = vehicleKey(vehicle.model, 150);
 
-        // IMPORTANT: conflict detection must inspect ALL vehicle documents, not only
-        // approved ones. This prevents duplicates from slipping through when an old
-        // imported record has a missing/different status value.
-        const snapshot = await db().collection(col("vehicles")).get();
+        // Owner may inspect every stored record. Editors only need published records
+        // because their changes live in change_requests until the owner approves them.
+        // Keeping the editor query explicitly constrained also matches Firestore Rules.
+        const vehicleQuery = profile.role === "owner"
+            ? db().collection(col("vehicles"))
+            : db().collection(col("vehicles")).where("status", "==", "approved");
+        const snapshot = await vehicleQuery.get();
 
         const duplicates = [];
         const overlaps = [];
@@ -267,8 +270,12 @@
     }
 
     async function listVehicles(options = {}) {
-        authContext();
-        const snapshot = await db().collection(col("vehicles")).limit(Number(options.limit) || 300).get();
+        const { profile } = authContext();
+        const limit = Number(options.limit) || 300;
+        const query = profile.role === "owner"
+            ? db().collection(col("vehicles")).limit(limit)
+            : db().collection(col("vehicles")).where("status", "==", "approved").limit(limit);
+        const snapshot = await query.get();
         return snapshot.docs
             .map(vehicleFromSnapshot)
             .sort((a, b) => `${a.make || ""} ${a.model || ""}`.localeCompare(`${b.make || ""} ${b.model || ""}`));
@@ -514,8 +521,11 @@
     }
 
     async function getCategories() {
-        authContext();
-        const snapshot = await db().collection(col("categories")).get();
+        const { profile } = authContext();
+        const query = profile.role === "owner"
+            ? db().collection(col("categories"))
+            : db().collection(col("categories")).where("active", "==", true);
+        const snapshot = await query.get();
         return snapshot.docs
             .map((doc) => ({ id: doc.id, ...doc.data() }))
             .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ar"));
@@ -820,8 +830,15 @@
     async function getDashboardStats() {
         const { user, profile } = authContext();
 
-        const vehiclePromise = db().collection(col("vehicles")).get();
-        const categoryPromise = db().collection(col("categories")).get();
+        // Editors only query documents they are explicitly allowed to read.
+        // Firestore Rules are not filters, so broad collection reads can be rejected
+        // even when the UI would later ignore restricted documents.
+        const vehiclePromise = profile.role === "owner"
+            ? db().collection(col("vehicles")).get()
+            : db().collection(col("vehicles")).where("status", "==", "approved").get();
+        const categoryPromise = profile.role === "owner"
+            ? db().collection(col("categories")).get()
+            : db().collection(col("categories")).where("active", "==", true).get();
         const requestPromise = profile.role === "owner"
             ? db().collection(col("changeRequests")).where("status", "==", "pending_review").get()
             : db().collection(col("changeRequests")).where("createdByUid", "==", user.uid).limit(200).get();
