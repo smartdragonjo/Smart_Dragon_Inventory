@@ -952,3 +952,61 @@ code {
     .admin-form-grid,
     .admin-form-grid.three { grid-template-columns: 1fr; }
 }
+
+/* =========================================================
+   Vehicle validation summary
+   ========================================================= */
+
+.admin-validation-summary {
+    margin: 14px 0 4px;
+    padding: 14px 16px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-soft);
+}
+
+.admin-validation-summary strong,
+.admin-validation-summary span {
+    display: block;
+}
+
+.admin-validation-summary span {
+    margin-top: 4px;
+    color: var(--text-muted);
+}
+
+.admin-validation-summary ul {
+    margin: 8px 0 0;
+    padding-right: 20px;
+}
+
+.admin-validation-summary li + li {
+    margin-top: 5px;
+}
+
+.admin-validation-summary.success {
+    border-color: rgba(20, 164, 103, 0.34);
+    background: var(--green-soft);
+}
+
+.admin-validation-summary.success strong {
+    color: #7ee0ad;
+}
+
+.admin-validation-summary.warning {
+    border-color: rgba(214, 162, 22, 0.34);
+    background: var(--warning-soft);
+}
+
+.admin-validation-summary.warning strong {
+    color: #f0d877;
+}
+
+.admin-validation-summary.error {
+    border-color: rgba(185, 31, 46, 0.36);
+    background: var(--red-soft);
+}
+
+.admin-validation-summary.error strong {
+    color: #ff8c98;
+}

@@ -7,7 +7,10 @@
         vehicles: [],
         requests: [],
         currentVehicle: null,
-        currentView: "dashboard"
+        currentView: "dashboard",
+        validationTimer: null,
+        validationSequence: 0,
+        currentConflicts: { duplicates: [], overlaps: [] }
     };
 
     const $ = (id) => document.getElementById(id);
@@ -37,6 +40,147 @@
         } else {
             button.textContent = button.dataset.originalText || button.textContent;
             button.disabled = false;
+        }
+    }
+
+    function normalizeInputValue(value) {
+        return window.SmartDragonValidation?.normalizePlainText?.(String(value ?? "")) ?? String(value ?? "").trim();
+    }
+
+    function validateFitmentForm() {
+        const errors = [];
+        const bulbIds = ["fitLowBeam", "fitHighBeam", "fitFogLight"];
+        bulbIds.forEach((id) => {
+            const value = normalizeInputValue($(id).value);
+            if (value && !SmartDragonValidation.validateFitmentValue(value)) {
+                errors.push(`قيمة ${$(id).closest("label")?.firstChild?.textContent?.trim() || "اللمبات"} غير صالحة.`);
+            }
+        });
+
+        ["fitWiperDriver", "fitWiperPassenger", "fitWiperRear"].forEach((id) => {
+            const raw = $(id).value.trim();
+            if (!raw) return;
+            const value = Number(raw);
+            if (!Number.isInteger(value) || value < 8 || value > 40) {
+                errors.push("مقاسات المساحات يجب أن تكون أرقامًا صحيحة بين 8 و40 إنش.");
+            }
+        });
+
+        const screen = normalizeInputValue($("fitScreen").value);
+        if (screen && !SmartDragonValidation.validateNote(screen)) {
+            errors.push("قيمة الشاشة تحتوي على نص غير صالح.");
+        }
+
+        const hasAnyFitment = bulbIds.some((id) => $(id).value.trim()) ||
+            ["fitWiperDriver", "fitWiperPassenger", "fitWiperRear"].some((id) => $(id).value.trim()) ||
+            screen !== "";
+        if (!hasAnyFitment) {
+            errors.push("أدخل بيانات توافق واحدة على الأقل: لمبة أو مساحة أو شاشة.");
+        }
+
+        return errors;
+    }
+
+    function localVehicleValidation() {
+        const vehicle = {
+            make: normalizeInputValue($("vehicleMake").value),
+            model: normalizeInputValue($("vehicleModel").value),
+            yearStart: Number($("vehicleYearStart").value),
+            yearEnd: Number($("vehicleYearEnd").value)
+        };
+        const result = SmartDragonValidation.validateVehicleRecord(vehicle);
+        const errors = [...result.errors];
+
+        const arabicMake = normalizeInputValue($("vehicleArabicMake").value);
+        if (arabicMake && !SmartDragonValidation.isSafePlainText(arabicMake, 100)) {
+            errors.push("اسم الشركة بالعربي يحتوي على رموز غير مسموحة.");
+        }
+
+        const keywords = $("vehicleArabicKeywords").value.trim();
+        if (keywords) {
+            const keywordList = keywords.split(/[,،]/).map((x) => normalizeInputValue(x)).filter(Boolean);
+            if (keywordList.some((x) => !SmartDragonValidation.isSafePlainText(x, 80))) {
+                errors.push("إحدى الكلمات العربية تحتوي على رموز غير مسموحة.");
+            }
+        }
+
+        errors.push(...validateFitmentForm());
+        return { valid: errors.length === 0, errors, vehicle };
+    }
+
+    function renderValidationSummary(localErrors = [], conflicts = state.currentConflicts) {
+        const box = $("vehicleValidationSummary");
+        if (!box) return;
+        const duplicates = conflicts?.duplicates || [];
+        const overlaps = conflicts?.overlaps || [];
+        const overlapAcknowledged = $("vehicleHasOverlap").checked;
+        const items = [];
+
+        localErrors.forEach((text) => items.push({ type: "error", text }));
+        duplicates.forEach((item) => items.push({ type: "error", text: `سجل مكرر مطابق موجود: ${item.label}` }));
+        overlaps.forEach((item) => items.push({
+            type: overlapAcknowledged ? "warning" : "error",
+            text: `تداخل سنوات مع: ${item.label}${overlapAcknowledged ? " — تم تأكيد أن التداخل مقصود." : " — عدّل النطاق أو فعّل خيار التداخل المقصود."}`
+        }));
+
+        if (!items.length) {
+            box.hidden = false;
+            box.className = "admin-validation-summary success";
+            box.innerHTML = "<strong>البيانات سليمة</strong><span>لا يوجد تكرار أو تداخل مع السجلات المنشورة.</span>";
+            return;
+        }
+
+        box.hidden = false;
+        box.className = `admin-validation-summary ${items.some((x) => x.type === "error") ? "error" : "warning"}`;
+        box.innerHTML = `<strong>${items.some((x) => x.type === "error") ? "راجع البيانات قبل الحفظ" : "تنبيه"}</strong><ul>${items.map((x) => `<li>${escapeHtml(x.text)}</li>`).join("")}</ul>`;
+    }
+
+    async function validateVehicleFormLive() {
+        const sequence = ++state.validationSequence;
+        const local = localVehicleValidation();
+        state.currentConflicts = { duplicates: [], overlaps: [] };
+
+        const enoughForConflictCheck =
+            SmartDragonValidation.validateVehicleMake(local.vehicle.make) &&
+            SmartDragonValidation.validateVehicleModel(local.vehicle.model) &&
+            SmartDragonValidation.validateYearRange(local.vehicle.yearStart, local.vehicle.yearEnd);
+
+        if (enoughForConflictCheck) {
+            try {
+                const conflicts = await SmartDragonFirestore.checkVehicleConflicts(
+                    $("vehicleId").value || null,
+                    { ...local.vehicle, hasOverlap: $("vehicleHasOverlap").checked }
+                );
+                if (sequence !== state.validationSequence) return;
+                state.currentConflicts = conflicts;
+            } catch (error) {
+                if (sequence !== state.validationSequence) return;
+                console.error(error);
+                local.errors.push(error.message || "تعذر التحقق من التكرار والتداخل.");
+            }
+        }
+
+        renderValidationSummary(local.errors, state.currentConflicts);
+    }
+
+    function scheduleVehicleValidation() {
+        clearTimeout(state.validationTimer);
+        state.validationTimer = setTimeout(validateVehicleFormLive, 250);
+    }
+
+    function assertVehicleFormCanSubmit() {
+        const local = localVehicleValidation();
+        if (!local.valid) {
+            renderValidationSummary(local.errors, state.currentConflicts);
+            throw new Error(local.errors[0]);
+        }
+
+        if (state.currentConflicts.duplicates.length) {
+            throw new Error(`يوجد سجل مكرر مطابق: ${state.currentConflicts.duplicates[0].label}`);
+        }
+
+        if (state.currentConflicts.overlaps.length && !$("vehicleHasOverlap").checked) {
+            throw new Error("يوجد تداخل في نطاق السنوات. عدّل النطاق أو فعّل خيار التداخل المقصود بعد التحقق.");
         }
     }
 
@@ -216,6 +360,8 @@
     async function openVehicleModal(vehicleId = null) {
         state.currentVehicle = null;
         $("vehicleForm").reset();
+        state.currentConflicts = { duplicates: [], overlaps: [] };
+        $("vehicleValidationSummary").hidden = true;
         $("vehicleId").value = vehicleId || "";
         $("deleteVehicleButton").hidden = true;
         message($("vehicleFormMessage"), "");
@@ -224,6 +370,7 @@
             $("vehicleModalTitle").textContent = "إضافة سيارة";
             $("vehicleModalHint").textContent = isOwner() ? "سيتم نشر السجل مباشرة بعد الحفظ." : "سيتم إرسال السجل للمالك للمراجعة.";
             $("vehicleModal").hidden = false;
+            scheduleVehicleValidation();
             return;
         }
 
@@ -257,6 +404,7 @@
             const screens = findFitment(record, "screens")?.fields || {};
             $("fitScreen").value = screens.screen?.raw || screens.screen?.notes || "";
             $("deleteVehicleButton").hidden = !isOwner();
+            scheduleVehicleValidation();
         } catch (error) {
             console.error(error);
             message($("vehicleFormMessage"), error.message || "تعذر فتح السجل.", "error");
@@ -274,6 +422,8 @@
         message($("vehicleFormMessage"), "");
         try {
             setBusy(button, true, isOwner() ? "جاري الحفظ..." : "جاري الإرسال...");
+            await validateVehicleFormLive();
+            assertVehicleFormCanSubmit();
             const payload = buildPayloadFromForm();
             const vehicleId = $("vehicleId").value || null;
             const label = `${payload.vehicle.make} ${payload.vehicle.model} ${payload.vehicle.yearStart}-${payload.vehicle.yearEnd}`;
@@ -458,6 +608,14 @@
         $("vehicleSearchInput").addEventListener("input", renderVehicles);
         $("addVehicleButton").addEventListener("click", () => openVehicleModal());
         $("vehicleForm").addEventListener("submit", submitVehicle);
+        [
+            "vehicleMake", "vehicleModel", "vehicleArabicMake", "vehicleArabicKeywords",
+            "vehicleYearStart", "vehicleYearEnd", "vehicleHasOverlap",
+            "fitLowBeam", "fitHighBeam", "fitFogLight",
+            "fitWiperDriver", "fitWiperPassenger", "fitWiperRear", "fitScreen"
+        ].forEach((id) => {
+            $(id).addEventListener(id === "vehicleHasOverlap" ? "change" : "input", scheduleVehicleValidation);
+        });
         $("deleteVehicleButton").addEventListener("click", deleteCurrentVehicle);
         $("closeVehicleModalButton").addEventListener("click", closeVehicleModal);
         document.querySelectorAll("[data-close-modal='true']").forEach((el) => el.addEventListener("click", closeVehicleModal));

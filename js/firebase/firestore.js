@@ -48,6 +48,18 @@
         return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, max);
     }
 
+    function vehicleKey(value, max = 150) {
+        return cleanText(value, max).normalize("NFKC").toLocaleLowerCase("en");
+    }
+
+    function yearRangesOverlap(aStart, aEnd, bStart, bEnd) {
+        return Number(aStart) <= Number(bEnd) && Number(bStart) <= Number(aEnd);
+    }
+
+    function describeVehicleConflict(vehicle) {
+        return `${cleanText(vehicle.make, 100)} ${cleanText(vehicle.model, 150)} ${Number(vehicle.yearStart)}-${Number(vehicle.yearEnd)}`.trim();
+    }
+
     function validateVehiclePayload(payload) {
         const make = cleanText(payload?.make, 100);
         const model = cleanText(payload?.model, 150);
@@ -189,6 +201,57 @@
         return cleanText(snapshot.docs[0].data().url, 1000) || null;
     }
 
+    async function checkVehicleConflicts(vehicleId, payload) {
+        authContext();
+        const vehicle = validateVehiclePayload(payload?.vehicle || payload);
+        const currentId = vehicleId ? String(vehicleId) : null;
+        const makeKey = vehicleKey(vehicle.make, 100);
+        const modelKey = vehicleKey(vehicle.model, 150);
+
+        const snapshot = await db().collection(col("vehicles"))
+            .where("status", "==", "approved")
+            .get();
+
+        const duplicates = [];
+        const overlaps = [];
+
+        snapshot.docs.forEach((doc) => {
+            if (doc.id === currentId) return;
+            const other = { id: doc.id, ...doc.data() };
+            if (vehicleKey(other.make, 100) !== makeKey || vehicleKey(other.model, 150) !== modelKey) return;
+
+            const otherStart = Number(other.yearStart);
+            const otherEnd = Number(other.yearEnd);
+            if (!Number.isInteger(otherStart) || !Number.isInteger(otherEnd)) return;
+
+            const exact = otherStart === vehicle.yearStart && otherEnd === vehicle.yearEnd;
+            if (exact) {
+                duplicates.push({
+                    id: doc.id,
+                    label: describeVehicleConflict(other),
+                    yearStart: otherStart,
+                    yearEnd: otherEnd
+                });
+                return;
+            }
+
+            if (yearRangesOverlap(vehicle.yearStart, vehicle.yearEnd, otherStart, otherEnd)) {
+                overlaps.push({
+                    id: doc.id,
+                    label: describeVehicleConflict(other),
+                    yearStart: otherStart,
+                    yearEnd: otherEnd
+                });
+            }
+        });
+
+        return {
+            valid: duplicates.length === 0 && overlaps.length === 0,
+            duplicates,
+            overlaps
+        };
+    }
+
     async function listVehicles(options = {}) {
         authContext();
         const snapshot = await db().collection(col("vehicles")).limit(Number(options.limit) || 300).get();
@@ -217,6 +280,18 @@
 
         const vehicle = validateVehiclePayload(payload?.vehicle || payload);
         const fitments = normalizeFitments(payload?.fitments || []);
+        if (!fitments.length) {
+            throw new Error("أدخل بيانات توافق واحدة على الأقل قبل الحفظ.");
+        }
+
+        const conflicts = await checkVehicleConflicts(vehicleId, vehicle);
+        if (conflicts.duplicates.length) {
+            throw new Error(`يوجد سجل مكرر مطابق لنفس الشركة والموديل ونطاق السنوات: ${conflicts.duplicates[0].label}`);
+        }
+        if (conflicts.overlaps.length && vehicle.hasOverlap !== true) {
+            throw new Error(`يوجد تداخل في السنوات مع: ${conflicts.overlaps.map((x) => x.label).join("، ")}. راجع النطاق أو فعّل خيار التداخل المعروف إذا كان مقصودًا.`);
+        }
+
         const database = db();
         const vehicleRef = vehicleId
             ? database.collection(col("vehicles")).doc(String(vehicleId))
@@ -236,6 +311,16 @@
             approvedAt: now,
             approvedBy: user.uid
         }, { merge: true });
+
+        if (conflicts.overlaps.length && vehicle.hasOverlap === true) {
+            conflicts.overlaps.forEach((conflict) => {
+                batch.set(database.collection(col("vehicles")).doc(conflict.id), {
+                    hasOverlap: true,
+                    updatedAt: now,
+                    updatedBy: user.uid
+                }, { merge: true });
+            });
+        }
 
         const oldFitments = await database.collection(col("vehicleFitments"))
             .where("vehicleId", "==", vehicleRef.id)
@@ -297,6 +382,20 @@
                 vehicle: validateVehiclePayload(changeRequest?.payload?.vehicle || {}),
                 fitments: normalizeFitments(changeRequest?.payload?.fitments || [])
             };
+
+        if (payload && !payload.fitments.length) {
+            throw new Error("أدخل بيانات توافق واحدة على الأقل قبل إرسال الطلب.");
+        }
+
+        if (payload) {
+            const conflicts = await checkVehicleConflicts(changeRequest?.targetVehicleId || null, payload.vehicle);
+            if (conflicts.duplicates.length) {
+                throw new Error(`يوجد سجل مكرر مطابق: ${conflicts.duplicates[0].label}`);
+            }
+            if (conflicts.overlaps.length && payload.vehicle.hasOverlap !== true) {
+                throw new Error(`يوجد تداخل في السنوات مع: ${conflicts.overlaps.map((x) => x.label).join("، ")}. راجع النطاق أو فعّل خيار التداخل المعروف إذا كان مقصودًا.`);
+            }
+        }
 
         const ref = await db().collection(col("changeRequests")).add({
             operation,
@@ -510,6 +609,7 @@
         getVehicleFitment,
         clearPublicVehicleCache,
         getAccessoriesLink,
+        checkVehicleConflicts,
         listVehicles,
         getVehicleRecord,
         saveVehicleRecord,

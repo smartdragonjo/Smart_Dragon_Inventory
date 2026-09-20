@@ -79,8 +79,8 @@
             </section>
 
             <section class="admin-security-note">
-                <strong>مهم</strong>
-                <p>هذه اللوحة تدير نسخة Firestore. واجهة البحث العامة الحالية ما زالت تقرأ <code>data/vehicles.json</code> إلى أن ننقل القراءة العامة إلى Firestore في خطوة مستقلة.</p>
+                <strong>مصدر البيانات الحالي</strong>
+                <p>لوحة الإدارة وواجهة البحث العامة تقرآن الآن من Firestore. لا يظهر للعامة إلا السجل المعتمد.</p>
             </section>
         </section>
 
@@ -155,7 +155,9 @@
                     <label>إلى سنة<input id="vehicleYearEnd" type="number" min="1950" max="2100" required></label>
                 </div>
 
-                <label class="admin-checkbox-line"><input id="vehicleHasOverlap" type="checkbox"> يوجد تداخل معروف يحتاج انتباه</label>
+                <label class="admin-checkbox-line"><input id="vehicleHasOverlap" type="checkbox"> يوجد تداخل معروف ومقصود في نطاق السنوات</label>
+
+                <div id="vehicleValidationSummary" class="admin-validation-summary" hidden></div>
 
                 <div class="admin-form-section">
                     <h3>اللمبات</h3>
@@ -196,6 +198,7 @@
 
     <script src="../js/app-config.js"></script>
     <script src="../js/firebase/config.js"></script>
+    <script src="../js/validation.js"></script>
     <script src="../js/firebase/auth.js"></script>
     <script src="../js/firebase/firestore.js"></script>
     <script src="js/dashboard.js"></script>
