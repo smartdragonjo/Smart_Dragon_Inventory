@@ -47,6 +47,26 @@
         return window.SmartDragonValidation?.normalizePlainText?.(String(value ?? "")) ?? String(value ?? "").trim();
     }
 
+    function canonicalVehicleText(value) {
+        return normalizeInputValue(value).normalize("NFKC").toLocaleLowerCase("en");
+    }
+
+    function findLocalExactDuplicate(vehicle) {
+        const currentId = String($("vehicleId").value || "");
+        const make = canonicalVehicleText(vehicle.make);
+        const model = canonicalVehicleText(vehicle.model);
+        const yearStart = Number(vehicle.yearStart);
+        const yearEnd = Number(vehicle.yearEnd);
+
+        return state.vehicles.find((item) => {
+            if (String(item.id || "") === currentId) return false;
+            return canonicalVehicleText(item.make) === make &&
+                canonicalVehicleText(item.model) === model &&
+                Number(item.yearStart) === yearStart &&
+                Number(item.yearEnd) === yearEnd;
+        }) || null;
+    }
+
     function validateFitmentForm() {
         const errors = [];
         const bulbIds = ["fitLowBeam", "fitHighBeam", "fitFogLight"];
@@ -173,6 +193,14 @@
         if (!local.valid) {
             renderValidationSummary(local.errors, state.currentConflicts);
             throw new Error(local.errors[0]);
+        }
+
+        // Second independent guard using the vehicles already loaded in the admin
+        // table. This makes exact duplicates impossible even if the remote conflict
+        // query is stale or an older imported record has unusual status metadata.
+        const localDuplicate = findLocalExactDuplicate(local.vehicle);
+        if (localDuplicate) {
+            throw new Error(`يوجد سجل مكرر مطابق بالفعل: ${localDuplicate.make} ${localDuplicate.model} ${localDuplicate.yearStart}-${localDuplicate.yearEnd}`);
         }
 
         if (state.currentConflicts.duplicates.length) {

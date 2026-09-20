@@ -52,6 +52,15 @@
         return cleanText(value, max).normalize("NFKC").toLocaleLowerCase("en");
     }
 
+    function vehicleIdentityKey(vehicle) {
+        return [
+            vehicleKey(vehicle?.make, 100),
+            vehicleKey(vehicle?.model, 150),
+            Number(vehicle?.yearStart),
+            Number(vehicle?.yearEnd)
+        ].join("|");
+    }
+
     function yearRangesOverlap(aStart, aEnd, bStart, bEnd) {
         return Number(aStart) <= Number(bEnd) && Number(bStart) <= Number(aEnd);
     }
@@ -208,12 +217,14 @@
         const makeKey = vehicleKey(vehicle.make, 100);
         const modelKey = vehicleKey(vehicle.model, 150);
 
-        const snapshot = await db().collection(col("vehicles"))
-            .where("status", "==", "approved")
-            .get();
+        // IMPORTANT: conflict detection must inspect ALL vehicle documents, not only
+        // approved ones. This prevents duplicates from slipping through when an old
+        // imported record has a missing/different status value.
+        const snapshot = await db().collection(col("vehicles")).get();
 
         const duplicates = [];
         const overlaps = [];
+        const wantedIdentity = vehicleIdentityKey(vehicle);
 
         snapshot.docs.forEach((doc) => {
             if (doc.id === currentId) return;
@@ -224,7 +235,9 @@
             const otherEnd = Number(other.yearEnd);
             if (!Number.isInteger(otherStart) || !Number.isInteger(otherEnd)) return;
 
-            const exact = otherStart === vehicle.yearStart && otherEnd === vehicle.yearEnd;
+            const exact =
+                vehicleIdentityKey(other) === wantedIdentity ||
+                (otherStart === vehicle.yearStart && otherEnd === vehicle.yearEnd);
             if (exact) {
                 duplicates.push({
                     id: doc.id,
@@ -303,6 +316,7 @@
 
         batch.set(vehicleRef, {
             ...vehicle,
+            identityKey: vehicleIdentityKey(vehicle),
             status: "approved",
             createdAt: previous.exists ? (previous.data().createdAt || now) : now,
             createdBy: previous.exists ? (previous.data().createdBy || user.uid) : user.uid,
@@ -545,6 +559,7 @@
 
             batch.set(vehicleRef, {
                 ...vehicle,
+                identityKey: vehicleIdentityKey(vehicle),
                 status: "approved",
                 source: record?.source || { type: "legacy_csv", sourceRow },
                 createdAt: now,
