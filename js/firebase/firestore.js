@@ -1,231 +1,499 @@
 /**
- * =========================================================
  * Smart Dragon Inventory
- * Firestore Data Layer Placeholder
- * =========================================================
- *
- * All Firestore access should later pass through this
- * module instead of being scattered across UI files.
- *
- * This will make it easier to:
- *
- * - Apply consistent validation
- * - Enforce data structures
- * - Add audit logging
- * - Handle review workflows
- * - Test data access
+ * Firestore Data Layer
  */
 
+(() => {
+    "use strict";
 
-/**
- * Ensure Firebase is enabled before database operations.
- */
-function assertFirestoreReady() {
-
-    const config =
-        window.SmartDragonFirebaseConfig;
-
-
-    if (
-        !config ||
-        !config.enabled ||
-        !config.projectConfigured
-    ) {
-
-        throw new Error(
-            "Firestore is not configured yet."
-        );
-
+    function cfg() {
+        return window.SmartDragonFirebaseConfig;
     }
 
-}
+    function assertFirestoreReady() {
+        if (!cfg()?.enabled || !cfg()?.projectConfigured || !window.firebase) {
+            throw new Error("Firestore is not configured.");
+        }
 
+        if (!firebase.apps.length) {
+            firebase.initializeApp(cfg().config);
+        }
+    }
 
-/**
- * =========================================================
- * Public Vehicle Data
- * =========================================================
- */
+    function db() {
+        assertFirestoreReady();
+        return firebase.firestore();
+    }
 
-async function getVehicleMakes() {
+    function col(name) {
+        return cfg()?.collections?.[name] || name;
+    }
 
-    assertFirestoreReady();
+    function authContext() {
+        const user = window.SmartDragonAuth?.getCurrentUser?.();
+        const profile = window.SmartDragonAuth?.getCurrentUserProfile?.();
+        if (!user || !profile?.enabled) {
+            throw new Error("يجب تسجيل الدخول بحساب مصرح له.");
+        }
+        return { user, profile };
+    }
 
-    return [];
-}
+    function isOwner() {
+        return window.SmartDragonAuth?.isOwner?.() === true;
+    }
 
+    function cleanText(value, max = 200) {
+        return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, max);
+    }
 
-async function getVehicleModels(make) {
+    function validateVehiclePayload(payload) {
+        const make = cleanText(payload?.make, 100);
+        const model = cleanText(payload?.model, 150);
+        const arabicMake = cleanText(payload?.arabicMake, 100);
+        const yearStart = Number(payload?.yearStart);
+        const yearEnd = Number(payload?.yearEnd);
 
-    void make;
+        if (!make || !model) {
+            throw new Error("الشركة والموديل مطلوبان.");
+        }
 
-    assertFirestoreReady();
+        if (!Number.isInteger(yearStart) || !Number.isInteger(yearEnd)) {
+            throw new Error("سنة البداية والنهاية يجب أن تكونا أرقامًا صحيحة.");
+        }
 
-    return [];
-}
+        if (yearStart < 1950 || yearEnd > 2100 || yearStart > yearEnd) {
+            throw new Error("نطاق السنوات غير صالح.");
+        }
 
+        const arabicKeywords = Array.isArray(payload?.arabicKeywords)
+            ? payload.arabicKeywords.map((x) => cleanText(x, 80)).filter(Boolean).slice(0, 20)
+            : cleanText(payload?.arabicKeywords, 500)
+                .split(/[,،]/)
+                .map((x) => cleanText(x, 80))
+                .filter(Boolean)
+                .slice(0, 20);
 
-async function getVehicleYears(
-    make,
-    model
-) {
+        return {
+            make,
+            model,
+            arabicMake,
+            arabicKeywords,
+            yearStart,
+            yearEnd,
+            dataQuality: cleanText(payload?.dataQuality || "complete", 30),
+            hasOverlap: payload?.hasOverlap === true
+        };
+    }
 
-    void make;
-    void model;
+    function normalizeFitments(fitments) {
+        if (!Array.isArray(fitments)) return [];
+        return fitments
+            .filter((item) => item && typeof item === "object")
+            .map((item) => ({
+                categorySlug: cleanText(item.categorySlug, 80),
+                fields: item.fields && typeof item.fields === "object" ? item.fields : {},
+                notes: cleanText(item.notes, 500) || null,
+                source: cleanText(item.source || "admin", 80)
+            }))
+            .filter((item) => item.categorySlug);
+    }
 
-    assertFirestoreReady();
+    function vehicleFromSnapshot(snapshot) {
+        return { id: snapshot.id, ...snapshot.data() };
+    }
 
-    return [];
-}
+    async function getVehicleMakes() {
+        const snapshot = await db().collection(col("vehicles"))
+            .where("status", "==", "approved")
+            .get();
+        return [...new Set(snapshot.docs.map((d) => cleanText(d.data().make)).filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b));
+    }
 
+    async function getVehicleModels(make) {
+        const makeKey = cleanText(make, 100);
+        const snapshot = await db().collection(col("vehicles"))
+            .where("status", "==", "approved")
+            .get();
+        return [...new Set(snapshot.docs
+            .map((d) => d.data())
+            .filter((v) => cleanText(v.make, 100) === makeKey)
+            .map((v) => cleanText(v.model))
+            .filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b));
+    }
 
-async function getVehicleFitment(
-    make,
-    model,
-    year
-) {
+    async function getVehicleYears(make, model) {
+        const makeKey = cleanText(make, 100);
+        const modelKey = cleanText(model, 150);
+        const snapshot = await db().collection(col("vehicles"))
+            .where("status", "==", "approved")
+            .get();
+        const years = new Set();
+        snapshot.docs.forEach((doc) => {
+            const data = doc.data();
+            if (cleanText(data.make, 100) !== makeKey || cleanText(data.model, 150) !== modelKey) return;
+            for (let y = Number(data.yearStart); y <= Number(data.yearEnd); y += 1) years.add(y);
+        });
+        return [...years].sort((a, b) => b - a);
+    }
 
-    void make;
-    void model;
-    void year;
+    async function getVehicleFitment(make, model, year) {
+        const y = Number(year);
+        const makeKey = cleanText(make, 100);
+        const modelKey = cleanText(model, 150);
+        const snapshot = await db().collection(col("vehicles"))
+            .where("status", "==", "approved")
+            .get();
 
-    assertFirestoreReady();
+        const matches = snapshot.docs
+            .map(vehicleFromSnapshot)
+            .filter((v) => cleanText(v.make, 100) === makeKey && cleanText(v.model, 150) === modelKey)
+            .filter((v) => y >= Number(v.yearStart) && y <= Number(v.yearEnd));
 
-    return null;
-}
+        if (matches.length !== 1) return null;
+        return getVehicleRecord(matches[0].id);
+    }
 
+    async function getAccessoriesLink(make, model) {
+        const snapshot = await db().collection(col("accessoryLinks"))
+            .where("car", "==", cleanText(make, 100))
+            .where("model", "==", cleanText(model, 150))
+            .limit(1)
+            .get();
 
-/**
- * =========================================================
- * Existing Smart Dragon Search Integration
- * =========================================================
- *
- * This will later read the existing "cars" collection
- * and return a product/accessories URL matching:
- *
- * make + model
- */
-async function getAccessoriesLink(
-    make,
-    model
-) {
+        if (snapshot.empty) return null;
+        return cleanText(snapshot.docs[0].data().url, 1000) || null;
+    }
 
-    void make;
-    void model;
+    async function listVehicles(options = {}) {
+        authContext();
+        const snapshot = await db().collection(col("vehicles")).limit(Number(options.limit) || 300).get();
+        return snapshot.docs
+            .map(vehicleFromSnapshot)
+            .sort((a, b) => `${a.make || ""} ${a.model || ""}`.localeCompare(`${b.make || ""} ${b.model || ""}`));
+    }
 
-    assertFirestoreReady();
+    async function getVehicleRecord(vehicleId) {
+        const vehicleRef = db().collection(col("vehicles")).doc(String(vehicleId));
+        const vehicleSnap = await vehicleRef.get();
+        if (!vehicleSnap.exists) return null;
 
-    return null;
-}
+        const fitmentSnap = await db().collection(col("vehicleFitments"))
+            .where("vehicleId", "==", vehicleRef.id)
+            .get();
 
+        const fitments = fitmentSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        return { id: vehicleRef.id, ...vehicleSnap.data(), fitments };
+    }
 
-/**
- * =========================================================
- * Admin Workflow
- * =========================================================
- */
+    async function saveVehicleRecord(vehicleId, payload) {
+        const { user } = authContext();
+        if (!isOwner()) throw new Error("الحفظ المباشر متاح للمالك فقط.");
 
-async function createChangeRequest(
-    changeRequest
-) {
+        const vehicle = validateVehiclePayload(payload?.vehicle || payload);
+        const fitments = normalizeFitments(payload?.fitments || []);
+        const database = db();
+        const vehicleRef = vehicleId
+            ? database.collection(col("vehicles")).doc(String(vehicleId))
+            : database.collection(col("vehicles")).doc();
 
-    void changeRequest;
+        const batch = database.batch();
+        const now = firebase.firestore.FieldValue.serverTimestamp();
+        const previous = await vehicleRef.get();
 
-    assertFirestoreReady();
+        batch.set(vehicleRef, {
+            ...vehicle,
+            status: "approved",
+            createdAt: previous.exists ? (previous.data().createdAt || now) : now,
+            createdBy: previous.exists ? (previous.data().createdBy || user.uid) : user.uid,
+            updatedAt: now,
+            updatedBy: user.uid,
+            approvedAt: now,
+            approvedBy: user.uid
+        }, { merge: true });
 
-    throw new Error(
-        "Change requests are not implemented yet."
-    );
+        const oldFitments = await database.collection(col("vehicleFitments"))
+            .where("vehicleId", "==", vehicleRef.id)
+            .get();
+        oldFitments.docs.forEach((doc) => batch.delete(doc.ref));
 
-}
+        fitments.forEach((fitment) => {
+            const fitRef = database.collection(col("vehicleFitments"))
+                .doc(`${vehicleRef.id}_${fitment.categorySlug}`);
+            batch.set(fitRef, {
+                vehicleId: vehicleRef.id,
+                categoryId: fitment.categorySlug,
+                fields: fitment.fields,
+                notes: fitment.notes,
+                source: fitment.source,
+                status: "approved",
+                createdAt: now,
+                createdBy: user.uid,
+                updatedAt: now,
+                updatedBy: user.uid
+            });
+        });
 
+        await batch.commit();
+        await writeAudit("vehicle_saved", vehicleRef.id, { fitmentCount: fitments.length });
+        return vehicleRef.id;
+    }
 
-async function approveChangeRequest(
-    requestId
-) {
+    async function deleteVehicleRecord(vehicleId) {
+        const { user } = authContext();
+        if (!isOwner()) throw new Error("الحذف متاح للمالك فقط.");
+        const database = db();
+        const vehicleRef = database.collection(col("vehicles")).doc(String(vehicleId));
+        const fitmentSnap = await database.collection(col("vehicleFitments"))
+            .where("vehicleId", "==", vehicleRef.id)
+            .get();
+        const batch = database.batch();
+        fitmentSnap.docs.forEach((doc) => batch.delete(doc.ref));
+        batch.delete(vehicleRef);
+        await batch.commit();
+        await writeAudit("vehicle_deleted", vehicleRef.id, { deletedBy: user.uid });
+    }
 
-    void requestId;
+    async function createChangeRequest(changeRequest) {
+        const { user, profile } = authContext();
+        const operation = ["create", "update", "delete"].includes(changeRequest?.operation)
+            ? changeRequest.operation
+            : "update";
 
-    assertFirestoreReady();
+        if (operation === "delete" && profile.role !== "owner") {
+            throw new Error("المحرر لا يستطيع طلب الحذف من هذه النسخة.");
+        }
 
-    throw new Error(
-        "Change approval is not implemented yet."
-    );
+        const payload = operation === "delete"
+            ? null
+            : {
+                vehicle: validateVehiclePayload(changeRequest?.payload?.vehicle || {}),
+                fitments: normalizeFitments(changeRequest?.payload?.fitments || [])
+            };
 
-}
+        const ref = await db().collection(col("changeRequests")).add({
+            operation,
+            targetVehicleId: cleanText(changeRequest?.targetVehicleId, 150) || null,
+            payload,
+            vehicleLabel: cleanText(changeRequest?.vehicleLabel, 250),
+            status: "pending_review",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdByUid: user.uid,
+            createdByEmail: cleanText(user.email, 200),
+            createdByRole: profile.role
+        });
 
+        return ref.id;
+    }
 
-async function bulkApproveChanges(
-    requestIds
-) {
+    async function listPendingChangeRequests() {
+        authContext();
+        const snapshot = await db().collection(col("changeRequests"))
+            .where("status", "==", "pending_review")
+            .limit(200)
+            .get();
+        return snapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    }
 
-    void requestIds;
+    async function approveChangeRequest(requestId) {
+        const { user } = authContext();
+        if (!isOwner()) throw new Error("الاعتماد متاح للمالك فقط.");
 
-    assertFirestoreReady();
+        const requestRef = db().collection(col("changeRequests")).doc(String(requestId));
+        const snap = await requestRef.get();
+        if (!snap.exists) throw new Error("طلب المراجعة غير موجود.");
+        const request = snap.data();
+        if (request.status !== "pending_review") throw new Error("تمت معالجة الطلب سابقًا.");
 
-    throw new Error(
-        "Bulk approval is not implemented yet."
-    );
+        let targetId = request.targetVehicleId || null;
+        if (request.operation === "delete") {
+            if (!targetId) throw new Error("طلب الحذف لا يحتوي على سجل مستهدف.");
+            await deleteVehicleRecord(targetId);
+        } else {
+            targetId = await saveVehicleRecord(targetId, request.payload || {});
+        }
 
-}
+        await requestRef.update({
+            status: "approved",
+            approvedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            approvedByUid: user.uid,
+            resultVehicleId: targetId
+        });
 
+        await writeAudit("change_request_approved", requestRef.id, { targetVehicleId: targetId });
+        return targetId;
+    }
 
-/**
- * =========================================================
- * Categories
- * =========================================================
- */
+    async function rejectChangeRequest(requestId, reason = "") {
+        const { user } = authContext();
+        if (!isOwner()) throw new Error("الرفض متاح للمالك فقط.");
+        await db().collection(col("changeRequests")).doc(String(requestId)).update({
+            status: "rejected",
+            rejectionReason: cleanText(reason, 500),
+            rejectedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            rejectedByUid: user.uid
+        });
+        await writeAudit("change_request_rejected", String(requestId), { reason: cleanText(reason, 500) });
+    }
 
-async function getCategories() {
+    async function bulkApproveChanges(requestIds) {
+        const ids = Array.from(new Set((requestIds || []).map(String))).slice(0, 50);
+        const results = [];
+        for (const id of ids) {
+            results.push(await approveChangeRequest(id));
+        }
+        return results;
+    }
 
-    assertFirestoreReady();
+    async function getCategories() {
+        const snapshot = await db().collection(col("categories")).orderBy("name").get();
+        return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    }
 
-    return [];
-}
+    async function createCategory(category) {
+        authContext();
+        if (!isOwner()) throw new Error("إدارة الأصناف متاحة للمالك فقط.");
+        const slug = cleanText(category?.slug, 80).toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+        const name = cleanText(category?.name, 120);
+        if (!slug || !name) throw new Error("اسم وslug الصنف مطلوبان.");
+        await db().collection(col("categories")).doc(slug).set({
+            name,
+            slug,
+            active: category?.active !== false,
+            fieldsDefinition: Array.isArray(category?.fieldsDefinition) ? category.fieldsDefinition : [],
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        return slug;
+    }
 
+    async function listUsers() {
+        authContext();
+        if (!isOwner()) return [];
+        const snapshot = await db().collection(col("users")).orderBy("email").get();
+        return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    }
 
-async function createCategory(
-    category
-) {
+    async function getDashboardStats() {
+        authContext();
+        const [vehicles, requests, categories] = await Promise.all([
+            db().collection(col("vehicles")).get(),
+            db().collection(col("changeRequests")).where("status", "==", "pending_review").get(),
+            db().collection(col("categories")).get()
+        ]);
+        let users = { size: 0 };
+        if (isOwner()) users = await db().collection(col("users")).get();
+        return {
+            vehicles: vehicles.size,
+            pending: requests.size,
+            categories: categories.size,
+            users: users.size + 1
+        };
+    }
 
-    void category;
+    async function importLegacyVehicles(records) {
+        authContext();
+        if (!isOwner()) throw new Error("الاستيراد متاح للمالك فقط.");
+        if (!Array.isArray(records)) throw new Error("ملف البيانات غير صالح.");
 
-    assertFirestoreReady();
+        const database = db();
+        const now = firebase.firestore.FieldValue.serverTimestamp();
+        const user = window.SmartDragonAuth.getCurrentUser();
+        let written = 0;
+        let batch = database.batch();
+        let operations = 0;
 
-    throw new Error(
-        "Category creation is not implemented yet."
-    );
+        async function flush() {
+            if (operations === 0) return;
+            await batch.commit();
+            batch = database.batch();
+            operations = 0;
+        }
 
-}
+        for (const record of records.slice(0, 1000)) {
+            const sourceRow = Number(record?.source?.sourceRow) || (written + 1);
+            const vehicleId = `legacy_${sourceRow}`;
+            const vehicle = validateVehiclePayload(record?.vehicle || {});
+            const vehicleRef = database.collection(col("vehicles")).doc(vehicleId);
 
+            batch.set(vehicleRef, {
+                ...vehicle,
+                status: "approved",
+                source: record?.source || { type: "legacy_csv", sourceRow },
+                createdAt: now,
+                createdBy: user.uid,
+                updatedAt: now,
+                updatedBy: user.uid,
+                approvedAt: now,
+                approvedBy: user.uid
+            }, { merge: true });
+            operations += 1;
 
-/**
- * =========================================================
- * Public API
- * =========================================================
- */
+            normalizeFitments(record?.fitments || []).forEach((fitment) => {
+                const fitRef = database.collection(col("vehicleFitments"))
+                    .doc(`${vehicleId}_${fitment.categorySlug}`);
+                batch.set(fitRef, {
+                    vehicleId,
+                    categoryId: fitment.categorySlug,
+                    fields: fitment.fields,
+                    notes: fitment.notes,
+                    source: fitment.source || "legacy_csv",
+                    status: "approved",
+                    createdAt: now,
+                    createdBy: user.uid,
+                    updatedAt: now,
+                    updatedBy: user.uid
+                }, { merge: true });
+                operations += 1;
+            });
 
-window.SmartDragonFirestore =
-    Object.freeze({
+            written += 1;
+            if (operations >= 450) await flush();
+        }
 
+        await flush();
+        await writeAudit("legacy_import", "vehicles", { recordCount: written });
+        return written;
+    }
+
+    async function writeAudit(action, targetId, details = {}) {
+        const user = window.SmartDragonAuth?.getCurrentUser?.();
+        if (!user || !isOwner()) return;
+        try {
+            await db().collection(col("auditLogs")).add({
+                action: cleanText(action, 100),
+                targetId: cleanText(targetId, 200),
+                details,
+                actorUid: user.uid,
+                actorEmail: cleanText(user.email, 200),
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } catch (error) {
+            console.warn("[Smart Dragon Firestore] Audit log write failed", error);
+        }
+    }
+
+    window.SmartDragonFirestore = Object.freeze({
         getVehicleMakes,
-
         getVehicleModels,
-
         getVehicleYears,
-
         getVehicleFitment,
-
         getAccessoriesLink,
-
+        listVehicles,
+        getVehicleRecord,
+        saveVehicleRecord,
+        deleteVehicleRecord,
         createChangeRequest,
-
+        listPendingChangeRequests,
         approveChangeRequest,
-
+        rejectChangeRequest,
         bulkApproveChanges,
-
         getCategories,
-
-        createCategory
-
+        createCategory,
+        listUsers,
+        getDashboardStats,
+        importLegacyVehicles
     });
+})();

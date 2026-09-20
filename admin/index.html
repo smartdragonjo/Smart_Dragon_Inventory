@@ -1,430 +1,203 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <meta
-        name="robots"
-        content="noindex,nofollow"
-    >
-
-    <title>
-        لوحة إدارة محرك بحث التنين الذكي
-    </title>
-
-    <link
-        rel="stylesheet"
-        href="css/admin.css"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,nofollow">
+    <title>لوحة إدارة Smart Dragon Inventory</title>
+    <link rel="stylesheet" href="css/admin.css">
 </head>
-
-
 <body>
-
-
-    <!-- =====================================================
-         Development Banner
-         ===================================================== -->
-
-    <div class="admin-development-banner">
-
-        <strong>
-            لوحة الإدارة قيد التطوير
-        </strong>
-
-        <span>
-            تسجيل الدخول وقاعدة البيانات غير متصلين حالياً.
-        </span>
-
+    <div id="adminStatusBanner" class="admin-development-banner">
+        <strong>Smart Dragon Inventory Admin</strong>
+        <span id="adminStatusText">جاري تهيئة تسجيل الدخول...</span>
     </div>
 
+    <div id="loginGate" class="admin-login-gate">
+        <div class="admin-login-card">
+            <img src="../logo.png" alt="Smart Dragon">
+            <h1>لوحة الإدارة</h1>
+            <p>سجل الدخول بحساب Google المصرح له للوصول إلى بيانات السيارات والمراجعات.</p>
+            <button id="googleSignInButton" class="admin-primary-button" type="button">تسجيل الدخول باستخدام Google</button>
+            <div id="loginMessage" class="admin-message" hidden></div>
+        </div>
+    </div>
 
-
-    <!-- =====================================================
-         Sidebar
-         ===================================================== -->
-
-    <aside class="admin-sidebar">
-
+    <aside class="admin-sidebar" id="adminSidebar" hidden>
         <div class="admin-brand">
-
-            <img
-                src="../logo.png"
-                alt="شعار التنين الذكي"
-            >
-
-            <div>
-
-                <strong>
-                    Smart Dragon
-                </strong>
-
-                <span>
-                    Inventory Admin
-                </span>
-
-            </div>
-
+            <img src="../logo.png" alt="شعار التنين الذكي">
+            <div><strong>Smart Dragon</strong><span>Inventory Admin</span></div>
         </div>
 
-
         <nav class="admin-navigation">
-
-            <button
-                class="admin-nav-item active"
-                type="button"
-            >
-                لوحة التحكم
-            </button>
-
-
-            <button
-                class="admin-nav-item"
-                type="button"
-                disabled
-            >
-                السيارات
-            </button>
-
-
-            <button
-                class="admin-nav-item"
-                type="button"
-                disabled
-            >
-                طلبات المراجعة
-            </button>
-
-
-            <button
-                class="admin-nav-item"
-                type="button"
-                disabled
-            >
-                الأصناف
-            </button>
-
-
-            <button
-                class="admin-nav-item"
-                type="button"
-                disabled
-            >
-                المستخدمون
-            </button>
-
-
-            <button
-                class="admin-nav-item"
-                type="button"
-                disabled
-            >
-                سجل التعديلات
-            </button>
-
-
-            <button
-                class="admin-nav-item"
-                type="button"
-                disabled
-            >
-                النسخ الاحتياطية
-            </button>
-
+            <button class="admin-nav-item active" type="button" data-view="dashboard">لوحة التحكم</button>
+            <button class="admin-nav-item" type="button" data-view="vehicles">السيارات</button>
+            <button class="admin-nav-item" type="button" data-view="reviews">طلبات المراجعة</button>
+            <button class="admin-nav-item" type="button" disabled>الأصناف</button>
+            <button class="admin-nav-item owner-only" type="button" disabled>المستخدمون</button>
+            <button class="admin-nav-item owner-only" type="button" disabled>سجل التعديلات</button>
+            <button class="admin-nav-item owner-only" type="button" disabled>النسخ الاحتياطية</button>
         </nav>
-
     </aside>
 
-
-
-    <!-- =====================================================
-         Main Dashboard
-         ===================================================== -->
-
-    <main class="admin-main">
-
-
+    <main class="admin-main" id="adminMain" hidden>
         <header class="admin-header">
-
             <div>
-
-                <h1>
-                    لوحة التحكم
-                </h1>
-
-                <p>
-                    إدارة بيانات توافق السيارات والمنتجات.
-                </p>
-
+                <h1 id="pageTitle">لوحة التحكم</h1>
+                <p id="pageSubtitle">إدارة بيانات توافق السيارات والمراجعات.</p>
             </div>
 
-
-            <div class="admin-user-preview">
-
-                <span class="admin-user-avatar">
-                    S
-                </span>
-
-                <div>
-
-                    <strong>
-                        Owner
-                    </strong>
-
-                    <span>
-                        Google Sign-In غير متصل
-                    </span>
-
+            <div class="admin-header-actions">
+                <div class="admin-user-preview">
+                    <span class="admin-user-avatar" id="userAvatar">S</span>
+                    <div>
+                        <strong id="userRole">—</strong>
+                        <span id="userEmail">—</span>
+                    </div>
                 </div>
-
+                <button id="signOutButton" class="admin-secondary-button" type="button">تسجيل الخروج</button>
             </div>
-
         </header>
 
+        <section id="dashboardView" class="admin-view active">
+            <section class="admin-stats">
+                <article class="admin-stat-card"><span>السيارات</span><strong id="statVehicles">—</strong><small>السجلات في Firestore</small></article>
+                <article class="admin-stat-card"><span>بانتظار المراجعة</span><strong id="statPending">—</strong><small>طلبات المحررين</small></article>
+                <article class="admin-stat-card"><span>الأصناف</span><strong id="statCategories">—</strong><small>فئات بيانات التوافق</small></article>
+                <article class="admin-stat-card"><span>المستخدمون</span><strong id="statUsers">—</strong><small>Owner + Editors</small></article>
+            </section>
 
+            <section class="admin-panel">
+                <div class="admin-panel-header">
+                    <div>
+                        <h2>بدء العمل</h2>
+                        <p>يمكن للمالك استيراد بيانات <code>data/vehicles.json</code> الحالية إلى Firestore مرة واحدة. العملية آمنة لإعادة التشغيل لأن معرفات السجلات القديمة ثابتة.</p>
+                    </div>
+                    <button id="importLegacyButton" class="admin-primary-button owner-only" type="button">استيراد البيانات الحالية</button>
+                </div>
+                <div id="dashboardMessage" class="admin-message" hidden></div>
+            </section>
 
-        <!-- =================================================
-             Stats Preview
-             ================================================= -->
-
-        <section class="admin-stats">
-
-            <article class="admin-stat-card">
-
-                <span>
-                    السيارات
-                </span>
-
-                <strong>
-                    —
-                </strong>
-
-                <small>
-                    بعد ربط قاعدة البيانات
-                </small>
-
-            </article>
-
-
-            <article class="admin-stat-card">
-
-                <span>
-                    بانتظار المراجعة
-                </span>
-
-                <strong>
-                    —
-                </strong>
-
-                <small>
-                    تغييرات المحررين
-                </small>
-
-            </article>
-
-
-            <article class="admin-stat-card">
-
-                <span>
-                    الأصناف
-                </span>
-
-                <strong>
-                    —
-                </strong>
-
-                <small>
-                    يديرها Owner فقط
-                </small>
-
-            </article>
-
-
-            <article class="admin-stat-card">
-
-                <span>
-                    المستخدمون
-                </span>
-
-                <strong>
-                    —
-                </strong>
-
-                <small>
-                    Owner + Editors
-                </small>
-
-            </article>
-
+            <section class="admin-security-note">
+                <strong>مهم</strong>
+                <p>هذه اللوحة تدير نسخة Firestore. واجهة البحث العامة الحالية ما زالت تقرأ <code>data/vehicles.json</code> إلى أن ننقل القراءة العامة إلى Firestore في خطوة مستقلة.</p>
+            </section>
         </section>
 
-
-
-        <!-- =================================================
-             Review Preview
-             ================================================= -->
-
-        <section class="admin-panel">
-
-            <div class="admin-panel-header">
-
-                <div>
-
-                    <h2>
-                        طلبات المراجعة
-                    </h2>
-
-                    <p>
-                        سيتمكن المدير من اعتماد عدة تعديلات دفعة واحدة.
-                    </p>
-
+        <section id="vehiclesView" class="admin-view">
+            <section class="admin-panel">
+                <div class="admin-panel-header">
+                    <div>
+                        <h2>السيارات</h2>
+                        <p>إضافة وتعديل نطاقات السنوات وبيانات التوافق.</p>
+                    </div>
+                    <div class="admin-panel-actions">
+                        <input id="vehicleSearchInput" class="admin-search-input" type="search" placeholder="بحث بالشركة أو الموديل...">
+                        <button id="addVehicleButton" class="admin-primary-button" type="button">إضافة سيارة</button>
+                    </div>
                 </div>
 
+                <div id="vehiclesMessage" class="admin-message" hidden></div>
 
-                <button
-                    type="button"
-                    class="admin-primary-button"
-                    disabled
-                >
-                    اعتماد المحدد
-                </button>
-
-            </div>
-
-
-            <div class="admin-table-wrapper">
-
-                <table class="admin-table">
-
-                    <thead>
-
-                        <tr>
-
-                            <th>
-                                <input
-                                    type="checkbox"
-                                    disabled
-                                    aria-label="تحديد الكل"
-                                >
-                            </th>
-
-                            <th>
-                                السيارة
-                            </th>
-
-                            <th>
-                                نوع التغيير
-                            </th>
-
-                            <th>
-                                المستخدم
-                            </th>
-
-                            <th>
-                                الحالة
-                            </th>
-
-                            <th>
-                                الإجراءات
-                            </th>
-
-                        </tr>
-
-                    </thead>
-
-
-                    <tbody>
-
-                        <tr>
-
-                            <td colspan="6">
-
-                                <div class="admin-empty-state">
-
-                                    <strong>
-                                        لا توجد بيانات حالياً
-                                    </strong>
-
-                                    <span>
-                                        ستظهر طلبات المراجعة هنا بعد ربط Firebase.
-                                    </span>
-
-                                </div>
-
-                            </td>
-
-                        </tr>
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
+                <div class="admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>الشركة</th><th>الموديل</th><th>السنوات</th><th>الحالة</th><th>التداخل</th><th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vehiclesTableBody">
+                            <tr><td colspan="6"><div class="admin-empty-state"><strong>جاري التحميل...</strong></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </section>
 
-
-
-        <!-- =================================================
-             Architecture Notice
-             ================================================= -->
-
-        <section class="admin-security-note">
-
-            <strong>
-                تصميم الصلاحيات المستقبلي
-            </strong>
-
-
-            <p>
-                المحررون سيتمكنون من إضافة وتعديل البيانات،
-                لكن تغييراتهم لن تنشر مباشرة.
-                الحساب المالك فقط سيتمكن من الاعتماد الجماعي،
-                إدارة المستخدمين، إدارة الأصناف والحذف.
-            </p>
-
+        <section id="reviewsView" class="admin-view">
+            <section class="admin-panel">
+                <div class="admin-panel-header">
+                    <div><h2>طلبات المراجعة</h2><p>المحرر يرسل التعديل، والمالك يعتمد أو يرفض.</p></div>
+                    <button id="bulkApproveButton" class="admin-primary-button owner-only" type="button" disabled>اعتماد المحدد</button>
+                </div>
+                <div id="reviewsMessage" class="admin-message" hidden></div>
+                <div class="admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th><input id="selectAllReviews" type="checkbox" aria-label="تحديد الكل"></th>
+                                <th>السيارة</th><th>نوع التغيير</th><th>المستخدم</th><th>الحالة</th><th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reviewsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
         </section>
-
-
     </main>
 
+    <div id="vehicleModal" class="admin-modal" hidden>
+        <div class="admin-modal-backdrop" data-close-modal="true"></div>
+        <section class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="vehicleModalTitle">
+            <div class="admin-modal-header">
+                <div><h2 id="vehicleModalTitle">إضافة سيارة</h2><p id="vehicleModalHint">أدخل بيانات السيارة والتوافق.</p></div>
+                <button id="closeVehicleModalButton" class="admin-icon-button" type="button" aria-label="إغلاق">×</button>
+            </div>
 
+            <form id="vehicleForm" class="admin-form">
+                <input id="vehicleId" type="hidden">
+                <div class="admin-form-grid">
+                    <label>الشركة<input id="vehicleMake" required maxlength="100" autocomplete="off"></label>
+                    <label>الموديل<input id="vehicleModel" required maxlength="150" autocomplete="off"></label>
+                    <label>اسم الشركة بالعربي<input id="vehicleArabicMake" maxlength="100" autocomplete="off"></label>
+                    <label>كلمات عربية مفصولة بفاصلة<input id="vehicleArabicKeywords" maxlength="500" autocomplete="off"></label>
+                    <label>من سنة<input id="vehicleYearStart" type="number" min="1950" max="2100" required></label>
+                    <label>إلى سنة<input id="vehicleYearEnd" type="number" min="1950" max="2100" required></label>
+                </div>
 
-    <script
-        src="../js/app-config.js"
-        defer
-    ></script>
+                <label class="admin-checkbox-line"><input id="vehicleHasOverlap" type="checkbox"> يوجد تداخل معروف يحتاج انتباه</label>
 
-<script
-    src="../js/firebase/config.js"
-    defer
-></script>
+                <div class="admin-form-section">
+                    <h3>اللمبات</h3>
+                    <div class="admin-form-grid three">
+                        <label>الواطي<input id="fitLowBeam" placeholder="مثال H11 أو LED/OEM"></label>
+                        <label>العالي<input id="fitHighBeam" placeholder="مثال 9005"></label>
+                        <label>الضباب<input id="fitFogLight" placeholder="مثال H11 أو N/A"></label>
+                    </div>
+                </div>
 
-<script
-    src="../js/firebase/auth.js"
-    defer
-></script>
+                <div class="admin-form-section">
+                    <h3>المساحات (إنش)</h3>
+                    <div class="admin-form-grid three">
+                        <label>السائق<input id="fitWiperDriver" type="number" min="8" max="40" step="1"></label>
+                        <label>الراكب<input id="fitWiperPassenger" type="number" min="8" max="40" step="1"></label>
+                        <label>الخلفية<input id="fitWiperRear" type="number" min="8" max="40" step="1"></label>
+                    </div>
+                </div>
 
-<script
-    src="../js/firebase/firestore.js"
-    defer
-></script>
+                <div class="admin-form-section">
+                    <h3>الشاشة</h3>
+                    <label>ملاحظات / المقاس<input id="fitScreen" maxlength="300" placeholder="مثال Double DIN / 9-inch frame"></label>
+                </div>
 
+                <div id="vehicleFormMessage" class="admin-message" hidden></div>
+                <div class="admin-form-actions">
+                    <button id="saveVehicleButton" class="admin-primary-button" type="submit">حفظ</button>
+                    <button id="deleteVehicleButton" class="admin-danger-button owner-only" type="button" hidden>حذف السجل</button>
+                    <button class="admin-secondary-button" type="button" data-close-modal="true">إلغاء</button>
+                </div>
+            </form>
+        </section>
+    </div>
 
-    <script
-        src="js/dashboard.js"
-        defer
-    ></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
-
+    <script src="../js/app-config.js"></script>
+    <script src="../js/firebase/config.js"></script>
+    <script src="../js/firebase/auth.js"></script>
+    <script src="../js/firebase/firestore.js"></script>
+    <script src="js/dashboard.js"></script>
 </body>
-
 </html>
