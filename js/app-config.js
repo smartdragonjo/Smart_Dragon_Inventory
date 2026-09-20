@@ -31,7 +31,7 @@ window.SmartDragonConfig =
                     true,
 
                 localDataPreview:
-                    true,
+                    false,
 
                 firebase:
                     true,

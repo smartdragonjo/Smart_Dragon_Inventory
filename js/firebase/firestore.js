@@ -6,6 +6,8 @@
 (() => {
     "use strict";
 
+    let approvedVehiclesCache = null;
+
     function cfg() {
         return window.SmartDragonFirebaseConfig;
     }
@@ -102,21 +104,36 @@
         return { id: snapshot.id, ...snapshot.data() };
     }
 
-    async function getVehicleMakes() {
+    async function loadApprovedVehicles(force = false) {
+        if (!force && approvedVehiclesCache) {
+            return approvedVehiclesCache;
+        }
+
         const snapshot = await db().collection(col("vehicles"))
             .where("status", "==", "approved")
             .get();
-        return [...new Set(snapshot.docs.map((d) => cleanText(d.data().make)).filter(Boolean))]
+
+        approvedVehiclesCache = snapshot.docs
+            .map(vehicleFromSnapshot)
+            .sort((a, b) => `${a.make || ""} ${a.model || ""}`.localeCompare(`${b.make || ""} ${b.model || ""}`));
+
+        return approvedVehiclesCache;
+    }
+
+    function clearPublicVehicleCache() {
+        approvedVehiclesCache = null;
+    }
+
+    async function getVehicleMakes() {
+        const vehicles = await loadApprovedVehicles();
+        return [...new Set(vehicles.map((v) => cleanText(v.make)).filter(Boolean))]
             .sort((a, b) => a.localeCompare(b));
     }
 
     async function getVehicleModels(make) {
         const makeKey = cleanText(make, 100);
-        const snapshot = await db().collection(col("vehicles"))
-            .where("status", "==", "approved")
-            .get();
-        return [...new Set(snapshot.docs
-            .map((d) => d.data())
+        const vehicles = await loadApprovedVehicles();
+        return [...new Set(vehicles
             .filter((v) => cleanText(v.make, 100) === makeKey)
             .map((v) => cleanText(v.model))
             .filter(Boolean))]
@@ -126,31 +143,37 @@
     async function getVehicleYears(make, model) {
         const makeKey = cleanText(make, 100);
         const modelKey = cleanText(model, 150);
-        const snapshot = await db().collection(col("vehicles"))
-            .where("status", "==", "approved")
-            .get();
+        const vehicles = await loadApprovedVehicles();
         const years = new Set();
-        snapshot.docs.forEach((doc) => {
-            const data = doc.data();
+
+        vehicles.forEach((data) => {
             if (cleanText(data.make, 100) !== makeKey || cleanText(data.model, 150) !== modelKey) return;
-            for (let y = Number(data.yearStart); y <= Number(data.yearEnd); y += 1) years.add(y);
+            const start = Number(data.yearStart);
+            const end = Number(data.yearEnd);
+            if (!Number.isInteger(start) || !Number.isInteger(end)) return;
+            for (let y = start; y <= end; y += 1) years.add(y);
         });
+
         return [...years].sort((a, b) => b - a);
     }
 
-    async function getVehicleFitment(make, model, year) {
+    async function findVehicleMatches(make, model, year) {
         const y = Number(year);
         const makeKey = cleanText(make, 100);
         const modelKey = cleanText(model, 150);
-        const snapshot = await db().collection(col("vehicles"))
-            .where("status", "==", "approved")
-            .get();
+        if (!Number.isInteger(y)) return [];
 
-        const matches = snapshot.docs
-            .map(vehicleFromSnapshot)
-            .filter((v) => cleanText(v.make, 100) === makeKey && cleanText(v.model, 150) === modelKey)
-            .filter((v) => y >= Number(v.yearStart) && y <= Number(v.yearEnd));
+        const vehicles = await loadApprovedVehicles();
+        return vehicles.filter((v) =>
+            cleanText(v.make, 100) === makeKey &&
+            cleanText(v.model, 150) === modelKey &&
+            y >= Number(v.yearStart) &&
+            y <= Number(v.yearEnd)
+        );
+    }
 
+    async function getVehicleFitment(make, model, year) {
+        const matches = await findVehicleMatches(make, model, year);
         if (matches.length !== 1) return null;
         return getVehicleRecord(matches[0].id);
     }
@@ -181,6 +204,7 @@
 
         const fitmentSnap = await db().collection(col("vehicleFitments"))
             .where("vehicleId", "==", vehicleRef.id)
+            .where("status", "==", "approved")
             .get();
 
         const fitments = fitmentSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -236,6 +260,7 @@
         });
 
         await batch.commit();
+        clearPublicVehicleCache();
         await writeAudit("vehicle_saved", vehicleRef.id, { fitmentCount: fitments.length });
         return vehicleRef.id;
     }
@@ -252,6 +277,7 @@
         fitmentSnap.docs.forEach((doc) => batch.delete(doc.ref));
         batch.delete(vehicleRef);
         await batch.commit();
+        clearPublicVehicleCache();
         await writeAudit("vehicle_deleted", vehicleRef.id, { deletedBy: user.uid });
     }
 
@@ -454,6 +480,7 @@
         }
 
         await flush();
+        clearPublicVehicleCache();
         await writeAudit("legacy_import", "vehicles", { recordCount: written });
         return written;
     }
@@ -479,7 +506,9 @@
         getVehicleMakes,
         getVehicleModels,
         getVehicleYears,
+        findVehicleMatches,
         getVehicleFitment,
+        clearPublicVehicleCache,
         getAccessoriesLink,
         listVehicles,
         getVehicleRecord,

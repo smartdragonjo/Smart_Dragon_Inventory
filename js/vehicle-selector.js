@@ -2,8 +2,8 @@
  * Smart Dragon Inventory
  * Vehicle Selector Controller
  *
- * Local development preview only.
- * Firebase remains disabled.
+ * Public vehicle search backed by Firestore.
+ * Only approved records are exposed to customers.
  */
 
 function getSmartDragonConfig() {
@@ -135,7 +135,7 @@ function getFitment(
     return (
         fitments.find(
             (item) =>
-                item?.categorySlug ===
+                (item?.categorySlug || item?.categoryId) ===
                 slug
         ) || null
     );
@@ -282,194 +282,192 @@ function screenValue(field) {
 
 
 /**
- * Local data provider.
+ * Firestore public data provider.
  *
- * This is intentionally isolated from the UI so
- * Firestore can replace it later.
+ * Only records with status = "approved" are visible to
+ * the public UI. Firestore Security Rules enforce the same
+ * rule server-side, so unpublished admin changes cannot
+ * appear here.
  */
 const VehicleDataProvider =
 (() => {
 
-    let recordsCache = null;
+    function api() {
+        const firestore =
+            window.SmartDragonFirestore;
 
-
-    async function loadRecords() {
-
-        if (recordsCache) {
-            return recordsCache;
+        if (!firestore) {
+            throw new Error(
+                "Smart Dragon Firestore data layer is not available."
+            );
         }
 
-        const config =
-            getSmartDragonConfig();
+        return firestore;
+    }
 
-        const dataUrl =
-            config
-                ?.LOCAL_DATA
-                ?.vehiclesUrl ||
-            "data/vehicles.json";
 
-        const response =
-            await fetch(
-                dataUrl,
+    function overlapResult(
+        make,
+        model,
+        year,
+        matches
+    ) {
+        return {
+            vehicle: {
+                make,
+                model,
+                year
+            },
+
+            meta: {
+                hasOverlap: true,
+                blockingWarning: true,
+                warning:
+                    "يوجد أكثر من سجل معتمد يطابق نفس السيارة والسنة. لم يتم اختيار سجل تلقائياً حتى تتم مراجعة نطاقات السنوات."
+            },
+
+            categories: [
                 {
-                    cache:
-                        "no-store"
+                    name: "تنبيه مراجعة",
+                    items: [
+                        {
+                            label: "الحالة",
+                            value: "تداخل يحتاج مراجعة",
+                            tone: "warning",
+                            dir: "rtl"
+                        },
+                        {
+                            label: "عدد السجلات المطابقة",
+                            value: matches.length,
+                            tone: "warning",
+                            dir: "ltr"
+                        }
+                    ]
                 }
+            ]
+        };
+    }
+
+
+    function buildVehicleResult(
+        record,
+        selectedYear
+    ) {
+        const lighting =
+            getFitment(
+                record,
+                "lighting"
             );
 
-        if (!response.ok) {
-            throw new Error(
-                `Failed to load vehicles.json: ${response.status}`
+        const wipers =
+            getFitment(
+                record,
+                "wipers"
             );
-        }
 
-        const data =
-            await response.json();
-
-        if (
-            !Array.isArray(data)
-        ) {
-            throw new Error(
-                "vehicles.json must contain an array."
+        const screens =
+            getFitment(
+                record,
+                "screens"
             );
-        }
 
-        recordsCache =
-            data;
+        const hasOverlap =
+            Boolean(
+                record?.hasOverlap ||
+                record?.source?.hasOverlap
+            );
 
-        console.info(
-            `[Smart Dragon] Loaded ${recordsCache.length} local vehicle records.`
-        );
+        return {
+            vehicle: {
+                make: record.make,
+                model: record.model,
+                year: selectedYear,
+                yearStart: Number(record.yearStart),
+                yearEnd: Number(record.yearEnd)
+            },
 
-        return recordsCache;
+            meta: {
+                hasOverlap,
+                blockingWarning: false,
+                warning:
+                    hasOverlap
+                        ? "يوجد تداخل مسجل في نطاق السنوات. راجع بيانات السيارة إذا ظهرت نتائج غير متوقعة."
+                        : null
+            },
+
+            categories: [
+                {
+                    name: "اللمبات",
+                    items: [
+                        {
+                            label: "الواطي",
+                            ...bulbValue(
+                                lighting?.fields?.lowBeam
+                            )
+                        },
+                        {
+                            label: "العالي",
+                            ...bulbValue(
+                                lighting?.fields?.highBeam
+                            )
+                        },
+                        {
+                            label: "الضباب",
+                            ...bulbValue(
+                                lighting?.fields?.fogLight
+                            )
+                        }
+                    ]
+                },
+                {
+                    name: "المساحات",
+                    items: [
+                        {
+                            label: "جهة السائق",
+                            ...wiperValue(
+                                wipers?.fields?.driver
+                            )
+                        },
+                        {
+                            label: "جهة الراكب",
+                            ...wiperValue(
+                                wipers?.fields?.passenger
+                            )
+                        }
+                    ]
+                },
+                {
+                    name: "الشاشات",
+                    items: [
+                        {
+                            label: "المقاس / النوع",
+                            ...screenValue(
+                                screens?.fields?.screen
+                            )
+                        }
+                    ]
+                }
+            ]
+        };
     }
 
 
     return Object.freeze({
 
         async getMakes() {
-
-            const records =
-                await loadRecords();
-
-            return [
-                ...new Set(
-                    records
-                        .map(
-                            (record) =>
-                                record
-                                    ?.vehicle
-                                    ?.make
-                        )
-                        .filter(
-                            Boolean
-                        )
-                )
-            ].sort();
+            return api().getVehicleMakes();
         },
 
 
         async getModels(make) {
-
-            const records =
-                await loadRecords();
-
-            return [
-                ...new Set(
-                    records
-                        .filter(
-                            (record) =>
-                                record
-                                    ?.vehicle
-                                    ?.make ===
-                                make
-                        )
-                        .map(
-                            (record) =>
-                                record
-                                    ?.vehicle
-                                    ?.model
-                        )
-                        .filter(
-                            Boolean
-                        )
-                )
-            ].sort();
+            return api().getVehicleModels(make);
         },
 
 
-        async getYears(
-            make,
-            model
-        ) {
-
-            const records =
-                await loadRecords();
-
-            const years =
-                new Set();
-
-            records
-                .filter(
-                    (record) =>
-                        record
-                            ?.vehicle
-                            ?.make ===
-                            make &&
-                        record
-                            ?.vehicle
-                            ?.model ===
-                            model
-                )
-                .forEach(
-                    (record) => {
-
-                        const start =
-                            Number(
-                                record
-                                    .vehicle
-                                    .yearStart
-                            );
-
-                        const end =
-                            Number(
-                                record
-                                    .vehicle
-                                    .yearEnd
-                            );
-
-                        if (
-                            !Number
-                                .isInteger(
-                                    start
-                                ) ||
-                            !Number
-                                .isInteger(
-                                    end
-                                )
-                        ) {
-                            return;
-                        }
-
-                        for (
-                            let year =
-                                start;
-                            year <= end;
-                            year += 1
-                        ) {
-                            years.add(
-                                year
-                            );
-                        }
-
-                    }
-                );
-
-            return [
-                ...years
-            ].sort(
-                (a, b) =>
-                    b - a
+        async getYears(make, model) {
+            return api().getVehicleYears(
+                make,
+                model
             );
         },
 
@@ -479,295 +477,46 @@ const VehicleDataProvider =
             model,
             year
         ) {
-
-            const records =
-                await loadRecords();
-
             const matches =
-                records.filter(
-                    (record) => {
-
-                        const vehicle =
-                            record
-                                ?.vehicle;
-
-                        return (
-                            vehicle
-                                ?.make ===
-                                make &&
-
-                            vehicle
-                                ?.model ===
-                                model &&
-
-                            year >=
-                                vehicle
-                                    .yearStart &&
-
-                            year <=
-                                vehicle
-                                    .yearEnd
-                        );
-                    }
+                await api().findVehicleMatches(
+                    make,
+                    model,
+                    year
                 );
 
-
-            /**
-             * No record.
-             */
-            if (
-                matches.length === 0
-            ) {
+            if (matches.length === 0) {
                 return null;
             }
 
-
-            /**
-             * More than one year-range matches.
-             *
-             * Never choose one automatically.
-             */
-            if (
-                matches.length > 1
-            ) {
-
-                return {
-
-                    vehicle: {
-                        make,
-                        model,
-                        year
-                    },
-
-                    meta: {
-
-                        hasOverlap:
-                            true,
-
-                        blockingWarning:
-                            true,
-
-                        warning:
-                            "يوجد أكثر من سجل يطابق نفس السيارة والسنة. لم يتم اختيار سجل تلقائياً حتى تتم مراجعة نطاقات السنوات."
-                    },
-
-                    categories: [
-                        {
-                            name:
-                                "تنبيه مراجعة",
-
-                            items: [
-                                {
-                                    label:
-                                        "الحالة",
-
-                                    value:
-                                        "تداخل يحتاج مراجعة",
-
-                                    tone:
-                                        "warning",
-
-                                    dir:
-                                        "rtl"
-                                },
-
-                                {
-                                    label:
-                                        "عدد السجلات المطابقة",
-
-                                    value:
-                                        matches.length,
-
-                                    tone:
-                                        "warning",
-
-                                    dir:
-                                        "ltr"
-                                }
-                            ]
-                        }
-                    ]
-                };
+            if (matches.length > 1) {
+                return overlapResult(
+                    make,
+                    model,
+                    year,
+                    matches
+                );
             }
 
-
-            /**
-             * Exactly one match.
-             */
             const record =
-                matches[0];
-
-
-            const hasOverlap =
-                Boolean(
-                    record
-                        ?.source
-                        ?.hasOverlap ||
-
-                    record
-                        ?.vehicle
-                        ?.hasOverlap
+                await api().getVehicleFitment(
+                    make,
+                    model,
+                    year
                 );
 
+            if (!record) {
+                return null;
+            }
 
-            const lighting =
-                getFitment(
-                    record,
-                    "lighting"
-                );
-
-
-            const wipers =
-                getFitment(
-                    record,
-                    "wipers"
-                );
+            return buildVehicleResult(
+                record,
+                year
+            );
+        },
 
 
-            const screens =
-                getFitment(
-                    record,
-                    "screens"
-                );
-
-
-            return {
-
-                vehicle: {
-
-                    make:
-                        record
-                            .vehicle
-                            .make,
-
-                    model:
-                        record
-                            .vehicle
-                            .model,
-
-                    year,
-
-                    yearStart:
-                        record
-                            .vehicle
-                            .yearStart,
-
-                    yearEnd:
-                        record
-                            .vehicle
-                            .yearEnd
-                },
-
-
-                meta: {
-
-                    hasOverlap,
-
-                    blockingWarning:
-                        false,
-
-                    warning:
-                        hasOverlap
-                            ? "يوجد تداخل في نطاق السنوات مع سجل آخر. البيانات تحتاج مراجعة قبل النشر النهائي."
-                            : null
-                },
-
-
-                categories: [
-
-                    {
-                        name:
-                            "اللمبات",
-
-                        items: [
-
-                            {
-                                label:
-                                    "الواطي",
-
-                                ...bulbValue(
-                                    lighting
-                                        ?.fields
-                                        ?.lowBeam
-                                )
-                            },
-
-                            {
-                                label:
-                                    "العالي",
-
-                                ...bulbValue(
-                                    lighting
-                                        ?.fields
-                                        ?.highBeam
-                                )
-                            },
-
-                            {
-                                label:
-                                    "الضباب",
-
-                                ...bulbValue(
-                                    lighting
-                                        ?.fields
-                                        ?.fogLight
-                                )
-                            }
-                        ]
-                    },
-
-
-                    {
-                        name:
-                            "المساحات",
-
-                        items: [
-
-                            {
-                                label:
-                                    "جهة السائق",
-
-                                ...wiperValue(
-                                    wipers
-                                        ?.fields
-                                        ?.driver
-                                )
-                            },
-
-                            {
-                                label:
-                                    "جهة الراكب",
-
-                                ...wiperValue(
-                                    wipers
-                                        ?.fields
-                                        ?.passenger
-                                )
-                            }
-                        ]
-                    },
-
-
-                    {
-                        name:
-                            "الشاشات",
-
-                        items: [
-
-                            {
-                                label:
-                                    "المقاس / النوع",
-
-                                ...screenValue(
-                                    screens
-                                        ?.fields
-                                        ?.screen
-                                )
-                            }
-                        ]
-                    }
-                ]
-            };
+        clearCache() {
+            api().clearPublicVehicleCache?.();
         }
     });
 
@@ -785,6 +534,24 @@ async function loadMakes() {
             await VehicleDataProvider
                 .getMakes();
 
+        if (makes.length === 0) {
+            resetSelect(
+                elements.make,
+                "لا توجد بيانات منشورة"
+            );
+
+            setControlState(
+                elements.make,
+                false
+            );
+
+            console.warn(
+                "[Smart Dragon] Firestore contains no approved vehicle records."
+            );
+
+            return;
+        }
+
         populateSelect(
             elements.make,
             makes,
@@ -793,7 +560,7 @@ async function loadMakes() {
 
         setControlState(
             elements.make,
-            makes.length > 0
+            true
         );
 
     } catch (error) {
