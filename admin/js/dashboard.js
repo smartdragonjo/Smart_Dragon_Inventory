@@ -13,7 +13,8 @@
         currentConflicts: { duplicates: [], overlaps: [] },
         overlapOverviewOpen: false,
         categories: [],
-        editingCategorySlug: null
+        editingCategorySlug: null,
+        users: []
     };
 
     const $ = (id) => document.getElementById(id);
@@ -332,7 +333,8 @@
             dashboard: ["dashboardView", "لوحة التحكم", "إدارة بيانات توافق السيارات والمراجعات."],
             vehicles: ["vehiclesView", "السيارات", "إضافة وتعديل سجلات السيارات وبيانات التوافق."],
             reviews: ["reviewsView", "طلبات المراجعة", "اعتماد أو رفض تعديلات المحررين."],
-            categories: ["categoriesView", "الأصناف", "إدارة فئات وحقول بيانات التوافق بشكل ديناميكي."]
+            categories: ["categoriesView", "الأصناف", "إدارة فئات وحقول بيانات التوافق بشكل ديناميكي."],
+            users: ["usersView", "المستخدمون", "إدارة المحررين ودعوات الدخول إلى لوحة الإدارة."]
         };
 
         const [id, title, subtitle] = map[view] || map.dashboard;
@@ -344,6 +346,7 @@
         if (view === "vehicles") loadVehicles();
         if (view === "reviews") loadReviews();
         if (view === "categories") loadCategories();
+        if (view === "users") loadUsers();
     }
 
     async function loadStats() {
@@ -900,6 +903,107 @@
         }
     }
 
+
+    async function loadUsers() {
+        if (!isOwner()) return;
+        message($("usersMessage"), "");
+        $("usersTableBody").innerHTML = '<tr><td colspan="6"><div class="admin-empty-state"><strong>جاري التحميل...</strong></div></td></tr>';
+        try {
+            state.users = await SmartDragonFirestore.listManagedUsers();
+            renderUsers();
+        } catch (error) {
+            console.error(error);
+            $("usersTableBody").innerHTML = '<tr><td colspan="6"><div class="admin-empty-state"><strong>تعذر تحميل المستخدمين</strong></div></td></tr>';
+            message($("usersMessage"), error.message || "تعذر تحميل المستخدمين.", "error");
+        }
+    }
+
+    function renderUsers() {
+        const body = $("usersTableBody");
+        if (!body) return;
+
+        const ownerRow = `
+            <tr>
+                <td>Smart Dragon Owner</td>
+                <td dir="ltr">smartdragonjordan@gmail.com</td>
+                <td><span class="admin-badge approved">Owner</span></td>
+                <td><span class="admin-badge approved">فعال</span></td>
+                <td>مسجل</td>
+                <td>محمي</td>
+            </tr>`;
+
+        const rows = state.users.map((user) => {
+            const activeLabel = user.enabled ? "فعال" : "معطل";
+            const activeClass = user.enabled ? "approved" : "neutral";
+            const joinedLabel = user.joined ? "مسجل" : "بانتظار أول دخول";
+            const actionLabel = user.enabled ? "تعطيل" : "تفعيل";
+            const actionAttr = user.joined
+                ? `data-toggle-user="${escapeHtml(user.uid)}" data-next-enabled="${user.enabled ? "false" : "true"}`
+                : `data-toggle-invite="${escapeHtml(user.email)}" data-next-enabled="${user.enabled ? "false" : "true"}`;
+            return `
+                <tr>
+                    <td>${escapeHtml(user.displayName || "—")}</td>
+                    <td dir="ltr">${escapeHtml(user.email)}</td>
+                    <td><span class="admin-badge">Editor</span></td>
+                    <td><span class="admin-badge ${activeClass}">${activeLabel}</span></td>
+                    <td>${joinedLabel}</td>
+                    <td><button class="admin-link-button ${user.enabled ? "danger" : ""}" type="button" ${actionAttr}>${actionLabel}</button></td>
+                </tr>`;
+        }).join("");
+
+        body.innerHTML = ownerRow + (rows || '<tr><td colspan="6"><div class="admin-empty-state"><strong>لا يوجد محررون بعد</strong></div></td></tr>');
+    }
+
+    function openUserModal() {
+        if (!isOwner()) return;
+        $("userForm").reset();
+        message($("userFormMessage"), "");
+        $("userModal").hidden = false;
+        setTimeout(() => $("userInviteEmail")?.focus(), 0);
+    }
+
+    function closeUserModal() {
+        $("userModal").hidden = true;
+    }
+
+    async function submitUserInvite(event) {
+        event.preventDefault();
+        if (!isOwner()) return;
+        const button = $("saveUserButton");
+        try {
+            setBusy(button, true, "جاري الحفظ...");
+            const email = normalizeInputValue($("userInviteEmail").value).toLowerCase();
+            const displayName = normalizeInputValue($("userDisplayName").value);
+            await SmartDragonFirestore.createEditorInvite(email, displayName);
+            message($("userFormMessage"), "تمت إضافة الدعوة. يستطيع المستخدم الآن تسجيل الدخول بحساب Google نفسه.", "success");
+            await Promise.all([loadUsers(), loadStats()]);
+            setTimeout(closeUserModal, 700);
+        } catch (error) {
+            console.error(error);
+            message($("userFormMessage"), error.message || "تعذر إضافة المستخدم.", "error");
+        } finally {
+            setBusy(button, false);
+        }
+    }
+
+    async function toggleManagedUser(kind, id, nextEnabled) {
+        if (!isOwner()) return;
+        const enabled = nextEnabled === true || nextEnabled === "true";
+        try {
+            message($("usersMessage"), enabled ? "جاري التفعيل..." : "جاري التعطيل...", "info");
+            if (kind === "user") {
+                await SmartDragonFirestore.setUserEnabled(id, enabled);
+            } else {
+                await SmartDragonFirestore.setInviteEnabled(id, enabled);
+            }
+            message($("usersMessage"), enabled ? "تم تفعيل المستخدم." : "تم تعطيل المستخدم.", "success");
+            await Promise.all([loadUsers(), loadStats()]);
+        } catch (error) {
+            console.error(error);
+            message($("usersMessage"), error.message || "تعذر تحديث حالة المستخدم.", "error");
+        }
+    }
+
     function bindEvents() {
         $("googleSignInButton").addEventListener("click", async () => {
             const button = $("googleSignInButton");
@@ -947,6 +1051,10 @@
         $("importLegacyButton").addEventListener("click", importLegacy);
         $("bulkApproveButton").addEventListener("click", bulkApprove);
         $("addCategoryButton").addEventListener("click", () => openCategoryModal());
+        $("addUserButton").addEventListener("click", openUserModal);
+        $("userForm").addEventListener("submit", submitUserInvite);
+        $("closeUserModalButton").addEventListener("click", closeUserModal);
+        document.querySelectorAll("[data-close-user-modal='true']").forEach((el) => el.addEventListener("click", closeUserModal));
         $("addCategoryFieldButton").addEventListener("click", () => addCategoryField());
         $("categoryForm").addEventListener("submit", submitCategory);
         $("closeCategoryModalButton").addEventListener("click", closeCategoryModal);
@@ -971,6 +1079,10 @@
             if (editCategory) openCategoryModal(editCategory.dataset.editCategory);
             const removeField = event.target.closest("[data-remove-category-field]");
             if (removeField) removeField.closest(".admin-category-field-row")?.remove();
+            const toggleUser = event.target.closest("[data-toggle-user]");
+            if (toggleUser) toggleManagedUser("user", toggleUser.dataset.toggleUser, toggleUser.dataset.nextEnabled);
+            const toggleInvite = event.target.closest("[data-toggle-invite]");
+            if (toggleInvite) toggleManagedUser("invite", toggleInvite.dataset.toggleInvite, toggleInvite.dataset.nextEnabled);
             if (event.target.matches("[data-close-category-modal='true']")) closeCategoryModal();
         });
     }

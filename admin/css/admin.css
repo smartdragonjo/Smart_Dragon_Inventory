@@ -1203,3 +1203,21 @@ code {
         flex-direction: column;
     }
 }
+
+
+/* =========================================================
+   User management
+   ========================================================= */
+
+.admin-modal-card-small {
+    max-width: 720px;
+}
+
+#usersTableBody td[dir="ltr"] {
+    text-align: right;
+    unicode-bidi: plaintext;
+}
+
+#usersTableBody .admin-link-button.danger {
+    color: #ff8c98;
+}

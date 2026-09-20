@@ -609,11 +609,131 @@
         }
     }
 
+    function normalizeEmailAddress(value) {
+        return cleanText(value, 254).toLowerCase();
+    }
+
+    function validateEditorEmail(value) {
+        const email = normalizeEmailAddress(value);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            throw new Error("أدخل بريدًا إلكترونيًا صالحًا.");
+        }
+        if (email === "smartdragonjordan@gmail.com") {
+            throw new Error("حساب المالك لا يحتاج دعوة محرر.");
+        }
+        return email;
+    }
+
     async function listUsers() {
         authContext();
         if (!isOwner()) return [];
         const snapshot = await db().collection(col("users")).orderBy("email").get();
         return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    }
+
+    async function listUserInvites() {
+        authContext();
+        if (!isOwner()) return [];
+        const snapshot = await db().collection(col("userInvites")).orderBy("email").get();
+        return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    }
+
+    async function createEditorInvite(emailValue, displayName = "") {
+        const { user } = authContext();
+        if (!isOwner()) throw new Error("إدارة المستخدمين متاحة للمالك فقط.");
+        const email = validateEditorEmail(emailValue);
+        const name = cleanText(displayName, 120);
+        const ref = db().collection(col("userInvites")).doc(email);
+        const snap = await ref.get();
+        const now = firebase.firestore.FieldValue.serverTimestamp();
+        await ref.set({
+            email,
+            displayName: name,
+            role: "editor",
+            enabled: true,
+            updatedAt: now,
+            updatedByUid: user.uid,
+            updatedByEmail: cleanText(user.email, 200),
+            ...(snap.exists ? {} : {
+                createdAt: now,
+                createdByUid: user.uid,
+                createdByEmail: cleanText(user.email, 200)
+            })
+        }, { merge: true });
+        await writeAudit(snap.exists ? "editor_invite_updated" : "editor_invited", email, { displayName: name });
+        return email;
+    }
+
+    async function setUserEnabled(userId, enabled) {
+        const { user } = authContext();
+        if (!isOwner()) throw new Error("إدارة المستخدمين متاحة للمالك فقط.");
+        const ref = db().collection(col("users")).doc(String(userId));
+        const snap = await ref.get();
+        if (!snap.exists) throw new Error("المستخدم غير موجود.");
+        const data = snap.data() || {};
+        if (normalizeEmailAddress(data.email) === "smartdragonjordan@gmail.com") {
+            throw new Error("لا يمكن تعطيل حساب المالك.");
+        }
+        await ref.update({
+            enabled: enabled === true,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedByUid: user.uid
+        });
+        await writeAudit(enabled ? "editor_enabled" : "editor_disabled", ref.id, { email: data.email || "" });
+    }
+
+    async function setInviteEnabled(emailValue, enabled) {
+        const { user } = authContext();
+        if (!isOwner()) throw new Error("إدارة المستخدمين متاحة للمالك فقط.");
+        const email = validateEditorEmail(emailValue);
+        const ref = db().collection(col("userInvites")).doc(email);
+        const snap = await ref.get();
+        if (!snap.exists) throw new Error("الدعوة غير موجودة.");
+        await ref.update({
+            enabled: enabled === true,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedByUid: user.uid
+        });
+        await writeAudit(enabled ? "editor_invite_enabled" : "editor_invite_disabled", email);
+    }
+
+    async function listManagedUsers() {
+        authContext();
+        if (!isOwner()) return [];
+        const [users, invites] = await Promise.all([listUsers(), listUserInvites()]);
+        const byEmail = new Map();
+
+        users.forEach((item) => {
+            const email = normalizeEmailAddress(item.email);
+            if (!email) return;
+            byEmail.set(email, {
+                id: item.id,
+                uid: item.id,
+                email,
+                displayName: item.displayName || email,
+                role: item.role || "editor",
+                enabled: item.enabled === true,
+                joined: true,
+                source: "user"
+            });
+        });
+
+        invites.forEach((invite) => {
+            const email = normalizeEmailAddress(invite.email || invite.id);
+            if (!email || byEmail.has(email)) return;
+            byEmail.set(email, {
+                id: email,
+                uid: null,
+                email,
+                displayName: invite.displayName || email,
+                role: "editor",
+                enabled: invite.enabled === true,
+                joined: false,
+                source: "invite"
+            });
+        });
+
+        return [...byEmail.values()].sort((a, b) => a.email.localeCompare(b.email));
     }
 
     async function getDashboardStats() {
@@ -623,13 +743,16 @@
             db().collection(col("changeRequests")).where("status", "==", "pending_review").get(),
             db().collection(col("categories")).get()
         ]);
-        let users = { size: 0 };
-        if (isOwner()) users = await db().collection(col("users")).get();
+        let userCount = 1;
+        if (isOwner()) {
+            const managedUsers = await listManagedUsers();
+            userCount += managedUsers.length;
+        }
         return {
             vehicles: vehicles.size,
             pending: requests.size,
             categories: categories.size,
-            users: users.size + 1
+            users: userCount
         };
     }
 
@@ -740,6 +863,11 @@
         createCategory,
         ensureDefaultCategories,
         listUsers,
+        listUserInvites,
+        listManagedUsers,
+        createEditorInvite,
+        setUserEnabled,
+        setInviteEnabled,
         getDashboardStats,
         importLegacyVehicles
     });

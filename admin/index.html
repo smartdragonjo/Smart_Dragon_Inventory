@@ -34,7 +34,7 @@
             <button class="admin-nav-item" type="button" data-view="vehicles">السيارات</button>
             <button class="admin-nav-item" type="button" data-view="reviews">طلبات المراجعة</button>
             <button class="admin-nav-item" type="button" data-view="categories">الأصناف</button>
-            <button class="admin-nav-item owner-only" type="button" disabled>المستخدمون</button>
+            <button class="admin-nav-item owner-only" type="button" data-view="users">المستخدمون</button>
             <button class="admin-nav-item owner-only" type="button" disabled>سجل التعديلات</button>
             <button class="admin-nav-item owner-only" type="button" disabled>النسخ الاحتياطية</button>
         </nav>
@@ -144,6 +144,30 @@
                 </div>
             </section>
         </section>
+
+        <section id="usersView" class="admin-view">
+            <section class="admin-panel">
+                <div class="admin-panel-header">
+                    <div>
+                        <h2>المستخدمون</h2>
+                        <p>إدارة المحررين ودعوات الدخول. المالك فقط يستطيع التفعيل أو التعطيل.</p>
+                    </div>
+                    <button id="addUserButton" class="admin-primary-button owner-only" type="button">إضافة محرر</button>
+                </div>
+                <div id="usersMessage" class="admin-message" hidden></div>
+                <div class="admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الحالة</th><th>الدخول</th><th>الإجراءات</th></tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr><td colspan="6"><div class="admin-empty-state"><strong>جاري التحميل...</strong></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
         <section id="reviewsView" class="admin-view">
             <section class="admin-panel">
                 <div class="admin-panel-header">
@@ -165,6 +189,35 @@
             </section>
         </section>
     </main>
+
+
+    <div id="userModal" class="admin-modal" hidden>
+        <div class="admin-modal-backdrop" data-close-user-modal="true"></div>
+        <section class="admin-modal-card admin-modal-card-small" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+            <div class="admin-modal-header">
+                <div>
+                    <h2 id="userModalTitle">إضافة محرر</h2>
+                    <p>أدخل البريد المرتبط بحساب Google. عند أول تسجيل دخول سيتم تفعيل الحساب تلقائيًا.</p>
+                </div>
+                <button id="closeUserModalButton" class="admin-icon-button" type="button" aria-label="إغلاق">×</button>
+            </div>
+            <form id="userForm" class="admin-form">
+                <div class="admin-form-grid">
+                    <label>الاسم (اختياري)<input id="userDisplayName" maxlength="120" autocomplete="off" placeholder="مثال: أحمد"></label>
+                    <label>البريد الإلكتروني<input id="userInviteEmail" type="email" required maxlength="254" dir="ltr" autocomplete="off" placeholder="editor@example.com"></label>
+                </div>
+                <div class="admin-security-note">
+                    <strong>صلاحية المحرر</strong>
+                    <p>يمكنه إضافة وتعديل البيانات وإرسالها للمراجعة، لكنه لا يستطيع الاعتماد النهائي أو الحذف أو إدارة المستخدمين.</p>
+                </div>
+                <div id="userFormMessage" class="admin-message" hidden></div>
+                <div class="admin-form-actions">
+                    <button id="saveUserButton" class="admin-primary-button" type="submit">إرسال الدعوة</button>
+                    <button class="admin-secondary-button" type="button" data-close-user-modal="true">إلغاء</button>
+                </div>
+            </form>
+        </section>
+    </div>
 
     <div id="vehicleModal" class="admin-modal" hidden>
         <div class="admin-modal-backdrop" data-close-modal="true"></div>

@@ -48,6 +48,9 @@ window.SmartDragonFirebaseConfig =
                 users:
                     "users",
 
+                userInvites:
+                    "user_invites",
+
                 auditLogs:
                     "audit_logs",
 

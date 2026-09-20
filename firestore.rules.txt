@@ -22,6 +22,14 @@ service cloud.firestore {
       return isOwner() || isEditor();
     }
 
+    function hasEnabledInvite() {
+      return signedIn()
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/user_invites/$(request.auth.token.email))
+        && get(/databases/$(database)/documents/user_invites/$(request.auth.token.email)).data.enabled == true
+        && get(/databases/$(database)/documents/user_invites/$(request.auth.token.email)).data.role == 'editor';
+    }
+
     match /vehicles/{vehicleId} {
       allow read: if resource.data.status == 'approved' || isAdminUser();
       allow create, update, delete: if isOwner();
@@ -41,10 +49,8 @@ service cloud.firestore {
       allow create: if isAdminUser()
         && request.resource.data.createdByUid == request.auth.uid
         && request.resource.data.status == 'pending_review';
-
       allow read: if isOwner()
         || (isEditor() && resource.data.createdByUid == request.auth.uid);
-
       allow update, delete: if isOwner();
     }
 
@@ -53,9 +59,28 @@ service cloud.firestore {
       allow create, update, delete: if isOwner();
     }
 
+    match /user_invites/{inviteEmail} {
+      allow read: if isOwner()
+        || (signedIn() && request.auth.token.email == inviteEmail);
+      allow create, update, delete: if isOwner();
+    }
+
     match /users/{userId} {
       allow read: if isOwner() || (signedIn() && request.auth.uid == userId);
-      allow create, update, delete: if isOwner();
+
+      allow create: if isOwner()
+        || (
+          signedIn()
+          && request.auth.uid == userId
+          && request.auth.token.email != null
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.role == 'editor'
+          && request.resource.data.enabled == true
+          && hasEnabledInvite()
+        );
+
+      allow update, delete: if isOwner();
     }
 
     match /audit_logs/{logId} {
@@ -67,7 +92,6 @@ service cloud.firestore {
       allow read, create, update, delete: if isOwner();
     }
 
-    // Existing Smart Dragon search collection.
     match /cars/{carId} {
       allow read: if true;
       allow write: if signedIn()
