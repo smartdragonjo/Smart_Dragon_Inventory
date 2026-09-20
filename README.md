@@ -51,3 +51,6 @@
 السنة
 ↓
 عرض بيانات التوافق
+
+## v9 local backups
+Owner can download an import-compatible JSON backup of vehicles and fitments from Admin > Backups. No Firebase Storage is used. See `docs/BACKUPS.md`.

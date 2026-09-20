@@ -337,7 +337,8 @@
             reviews: ["reviewsView", "طلبات المراجعة", "اعتماد أو رفض تعديلات المحررين."],
             categories: ["categoriesView", "الأصناف", "إدارة فئات وحقول بيانات التوافق بشكل ديناميكي."],
             users: ["usersView", "المستخدمون", "إدارة المحررين ودعوات الدخول إلى لوحة الإدارة."],
-            audit: ["auditView", "سجل التعديلات", "متابعة العمليات الإدارية وطلبات المحررين."]
+            audit: ["auditView", "سجل التعديلات", "متابعة العمليات الإدارية وطلبات المحررين."],
+            backups: ["backupsView", "النسخ الاحتياطية", "تنزيل نسخة JSON محلية من بيانات توافق السيارات."]
         };
 
         const [id, title, subtitle] = map[view] || map.dashboard;
@@ -1143,6 +1144,47 @@
         `).join("");
     }
 
+    function backupFileName() {
+        const now = new Date();
+        const pad = (value) => String(value).padStart(2, "0");
+        return `smart-dragon-vehicles-backup-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
+    }
+
+    async function exportLocalBackup() {
+        if (!isOwner()) return;
+        const button = $("exportBackupButton");
+        try {
+            setBusy(button, true, "جاري تجهيز النسخة...");
+            message($("backupsMessage"), "جاري قراءة السيارات وبيانات التوافق من Firestore...", "info");
+
+            const records = await SmartDragonFirestore.exportVehicleBackupData();
+            if (!records.length) throw new Error("لا توجد سجلات سيارات لإنشاء نسخة احتياطية.");
+
+            const json = JSON.stringify(records, null, 2);
+            const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = backupFileName();
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+            await SmartDragonFirestore.recordBackupExport(records.length);
+            message(
+                $("backupsMessage"),
+                `تم تجهيز وتنزيل نسخة تحتوي على ${records.length} سجل. احتفظ بالملف في مكان آمن.`,
+                "success"
+            );
+        } catch (error) {
+            console.error(error);
+            message($("backupsMessage"), error.message || "تعذر إنشاء النسخة الاحتياطية.", "error");
+        } finally {
+            setBusy(button, false);
+        }
+    }
+
     function bindEvents() {
         $("googleSignInButton").addEventListener("click", async () => {
             const button = $("googleSignInButton");
@@ -1188,6 +1230,7 @@
         $("closeVehicleModalButton").addEventListener("click", closeVehicleModal);
         document.querySelectorAll("[data-close-modal='true']").forEach((el) => el.addEventListener("click", closeVehicleModal));
         $("importLegacyButton").addEventListener("click", importLegacy);
+        $("exportBackupButton").addEventListener("click", exportLocalBackup);
         $("bulkApproveButton").addEventListener("click", bulkApprove);
         $("refreshAuditButton")?.addEventListener("click", loadAuditLogs);
         $("auditActionFilter")?.addEventListener("change", renderAuditLogs);

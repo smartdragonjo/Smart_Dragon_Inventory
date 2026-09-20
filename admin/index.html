@@ -36,7 +36,7 @@
             <button class="admin-nav-item" type="button" data-view="categories">الأصناف</button>
             <button class="admin-nav-item owner-only" type="button" data-view="users">المستخدمون</button>
             <button class="admin-nav-item owner-only" type="button" data-view="audit">سجل التعديلات</button>
-            <button class="admin-nav-item owner-only" type="button" disabled>النسخ الاحتياطية</button>
+            <button class="admin-nav-item owner-only" type="button" data-view="backups">النسخ الاحتياطية</button>
         </nav>
     </aside>
 
@@ -216,6 +216,34 @@
                             <tr><td colspan="5"><div class="admin-empty-state"><strong>جاري التحميل...</strong></div></td></tr>
                         </tbody>
                     </table>
+                </div>
+            </section>
+        </section>
+
+        <section id="backupsView" class="admin-view">
+            <section class="admin-panel">
+                <div class="admin-panel-header">
+                    <div>
+                        <h2>النسخ الاحتياطية</h2>
+                        <p>تنزيل نسخة JSON محلية من السيارات وبيانات التوافق بدون Firebase Storage أو أي تكلفة تخزين إضافية.</p>
+                    </div>
+                    <button id="exportBackupButton" class="admin-primary-button owner-only" type="button">تنزيل نسخة JSON</button>
+                </div>
+
+                <div id="backupsMessage" class="admin-message" hidden></div>
+
+                <section class="admin-security-note">
+                    <strong>صيغة متوافقة مع الاستيراد الحالي</strong>
+                    <p>الملف الناتج متوافق مباشرة مع بنية <code>data/vehicles.json</code>. عند الحاجة للاستعادة يمكن استبدال ذلك الملف بالنسخة الاحتياطية ثم استخدام زر «استيراد البيانات الحالية» من لوحة التحكم.</p>
+                </section>
+
+                <div class="admin-form-section">
+                    <div class="admin-section-heading">
+                        <h3>ما الذي تحتويه النسخة؟</h3>
+                        <span>نسخة محلية</span>
+                    </div>
+                    <p class="admin-muted">كل سجلات السيارات الحالية مع جميع بيانات التوافق الديناميكية المرتبطة بها. لا يتم رفع الملف إلى Firebase Storage ولا إلى أي خدمة خارجية.</p>
+                    <p class="admin-muted">تعريفات الأصناف والمستخدمون وسجل التعديلات لا تدخل في هذه النسخة الحالية؛ الهدف الآن هو حماية بيانات توافق السيارات الأساسية.</p>
                 </div>
             </section>
         </section>

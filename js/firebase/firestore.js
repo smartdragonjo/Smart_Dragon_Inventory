@@ -876,6 +876,79 @@
         };
     }
 
+    async function exportVehicleBackupData() {
+        authContext();
+        if (!isOwner()) throw new Error("إنشاء النسخ الاحتياطية متاح للمالك فقط.");
+
+        const database = db();
+        const [vehiclesSnap, fitmentsSnap] = await Promise.all([
+            database.collection(col("vehicles")).get(),
+            database.collection(col("vehicleFitments")).get()
+        ]);
+
+        const fitmentsByVehicle = new Map();
+        fitmentsSnap.docs.forEach((doc) => {
+            const data = doc.data() || {};
+            const vehicleId = cleanText(data.vehicleId, 200);
+            if (!vehicleId) return;
+            if (!fitmentsByVehicle.has(vehicleId)) fitmentsByVehicle.set(vehicleId, []);
+            fitmentsByVehicle.get(vehicleId).push({
+                categorySlug: cleanText(data.categoryId || data.categorySlug, 80),
+                fields: data.fields && typeof data.fields === "object" ? data.fields : {},
+                notes: data.notes ?? null,
+                source: data.source || "firestore_backup"
+            });
+        });
+
+        const createdAt = new Date().toISOString();
+        return vehiclesSnap.docs
+            .map((doc, index) => {
+                const vehicle = doc.data() || {};
+                return {
+                    source: {
+                        type: "firestore_backup",
+                        sourceRow: index + 1,
+                        backupVehicleId: doc.id,
+                        backupCreatedAt: createdAt,
+                        migrationStatus: "ready",
+                        dataQuality: vehicle.dataQuality || "complete",
+                        hasOverlap: vehicle.hasOverlap === true,
+                        overlapReason: vehicle.overlapReason || ""
+                    },
+                    vehicle: {
+                        make: vehicle.make || "",
+                        model: vehicle.model || "",
+                        arabicMake: vehicle.arabicMake || "",
+                        arabicKeywords: Array.isArray(vehicle.arabicKeywords) ? vehicle.arabicKeywords : [],
+                        yearStart: Number(vehicle.yearStart),
+                        yearEnd: Number(vehicle.yearEnd),
+                        status: "migration_candidate",
+                        dataQuality: vehicle.dataQuality || "complete",
+                        hasOverlap: vehicle.hasOverlap === true,
+                        overlapReason: vehicle.overlapReason || ""
+                    },
+                    fitments: (fitmentsByVehicle.get(doc.id) || [])
+                        .filter((item) => item.categorySlug)
+                        .sort((a, b) => a.categorySlug.localeCompare(b.categorySlug))
+                };
+            })
+            .sort((a, b) => {
+                const aa = `${a.vehicle.make} ${a.vehicle.model} ${a.vehicle.yearStart}`;
+                const bb = `${b.vehicle.make} ${b.vehicle.model} ${b.vehicle.yearStart}`;
+                return aa.localeCompare(bb, "en");
+            });
+    }
+
+    async function recordBackupExport(recordCount) {
+        authContext();
+        if (!isOwner()) return;
+        await writeAudit("backup_exported", "data/vehicles.json", {
+            format: "json",
+            recordCount: Number(recordCount) || 0,
+            storage: "local_download"
+        });
+    }
+
     async function importLegacyVehicles(records) {
         authContext();
         if (!isOwner()) throw new Error("الاستيراد متاح للمالك فقط.");
@@ -897,7 +970,11 @@
 
         for (const record of records.slice(0, 1000)) {
             const sourceRow = Number(record?.source?.sourceRow) || (written + 1);
-            const vehicleId = `legacy_${sourceRow}`;
+            const backupVehicleId = cleanText(record?.source?.backupVehicleId, 200);
+            const canUseBackupId = record?.source?.type === "firestore_backup"
+                && backupVehicleId
+                && !backupVehicleId.includes("/");
+            const vehicleId = canUseBackupId ? backupVehicleId : `legacy_${sourceRow}`;
             const vehicle = validateVehiclePayload(record?.vehicle || {});
             const vehicleRef = database.collection(col("vehicles")).doc(vehicleId);
 
@@ -1007,6 +1084,8 @@
         deleteManagedUser,
         listAuditLogs,
         getDashboardStats,
+        exportVehicleBackupData,
+        recordBackupExport,
         importLegacyVehicles
     });
 })();
