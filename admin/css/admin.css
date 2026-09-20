@@ -1010,3 +1010,101 @@ code {
 .admin-validation-summary.error strong {
     color: #ff8c98;
 }
+
+/* =========================================================
+   Overlap review
+   ========================================================= */
+
+.admin-overlap-overview {
+    margin: 14px 0 18px;
+    padding: 16px;
+    border: 1px solid rgba(214, 162, 22, 0.28);
+    border-radius: var(--radius-md);
+    background: var(--warning-soft);
+}
+
+.admin-overlap-overview.clean {
+    border-color: rgba(20, 164, 103, 0.24);
+    background: var(--green-soft);
+}
+
+.admin-overlap-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.admin-overlap-header > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.admin-overlap-header span,
+.admin-overlap-item span,
+.admin-overlap-item small,
+.admin-overlap-reason small {
+    color: var(--text-muted);
+}
+
+.admin-overlap-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.admin-overlap-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.14);
+}
+
+.admin-overlap-item > div:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.admin-overlap-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.admin-overlap-reason {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-top: 10px;
+}
+
+.admin-overlap-reason textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 82px;
+    padding: 11px 12px;
+    color: var(--text);
+    background: var(--surface-soft);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+}
+
+@media (max-width: 720px) {
+    .admin-overlap-header,
+    .admin-overlap-item {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
+
+.admin-overlap-overview[hidden],
+.admin-overlap-list[hidden],
+.admin-overlap-reason[hidden] {
+    display: none !important;
+}

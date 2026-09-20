@@ -104,7 +104,8 @@
             yearStart,
             yearEnd,
             dataQuality: cleanText(payload?.dataQuality || "complete", 30),
-            hasOverlap: payload?.hasOverlap === true
+            hasOverlap: payload?.hasOverlap === true,
+            overlapReason: cleanText(payload?.overlapReason, 500)
         };
     }
 
@@ -304,6 +305,12 @@
         if (conflicts.overlaps.length && vehicle.hasOverlap !== true) {
             throw new Error(`يوجد تداخل في السنوات مع: ${conflicts.overlaps.map((x) => x.label).join("، ")}. راجع النطاق أو فعّل خيار التداخل المعروف إذا كان مقصودًا.`);
         }
+        if (conflicts.overlaps.length && vehicle.hasOverlap === true && !vehicle.overlapReason) {
+            throw new Error("اكتب سبب التداخل المقصود قبل الحفظ.");
+        }
+
+        vehicle.hasOverlap = conflicts.overlaps.length > 0 && vehicle.hasOverlap === true;
+        if (!vehicle.hasOverlap) vehicle.overlapReason = "";
 
         const database = db();
         const vehicleRef = vehicleId
@@ -409,6 +416,11 @@
             if (conflicts.overlaps.length && payload.vehicle.hasOverlap !== true) {
                 throw new Error(`يوجد تداخل في السنوات مع: ${conflicts.overlaps.map((x) => x.label).join("، ")}. راجع النطاق أو فعّل خيار التداخل المعروف إذا كان مقصودًا.`);
             }
+            if (conflicts.overlaps.length && payload.vehicle.hasOverlap === true && !payload.vehicle.overlapReason) {
+                throw new Error("اكتب سبب التداخل المقصود قبل إرسال الطلب للمراجعة.");
+            }
+            payload.vehicle.hasOverlap = conflicts.overlaps.length > 0 && payload.vehicle.hasOverlap === true;
+            if (!payload.vehicle.hasOverlap) payload.vehicle.overlapReason = "";
         }
 
         const ref = await db().collection(col("changeRequests")).add({

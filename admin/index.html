@@ -99,6 +99,17 @@
 
                 <div id="vehiclesMessage" class="admin-message" hidden></div>
 
+                <section id="overlapOverview" class="admin-overlap-overview" hidden>
+                    <div class="admin-overlap-header">
+                        <div>
+                            <strong>مراجعة التداخلات الحالية</strong>
+                            <span id="overlapOverviewCount">0 تداخلات</span>
+                        </div>
+                        <button id="toggleOverlapOverviewButton" class="admin-secondary-button" type="button">عرض التفاصيل</button>
+                    </div>
+                    <div id="overlapOverviewDetails" class="admin-overlap-list" hidden></div>
+                </section>
+
                 <div class="admin-table-wrapper">
                     <table class="admin-table">
                         <thead>
@@ -156,6 +167,11 @@
                 </div>
 
                 <label class="admin-checkbox-line"><input id="vehicleHasOverlap" type="checkbox"> يوجد تداخل معروف ومقصود في نطاق السنوات</label>
+                <label id="vehicleOverlapReasonWrap" class="admin-overlap-reason" hidden>
+                    سبب التداخل المقصود
+                    <textarea id="vehicleOverlapReason" maxlength="500" rows="3" placeholder="مثال: اختلاف فئة/هيكل/تجهيز لنفس السنوات، وتم التحقق من المصدر."></textarea>
+                    <small>إجباري عند وجود تداخل فعلي ومقصود. اكتب سببًا واضحًا يساعد المراجعة لاحقًا.</small>
+                </label>
 
                 <div id="vehicleValidationSummary" class="admin-validation-summary" hidden></div>
 

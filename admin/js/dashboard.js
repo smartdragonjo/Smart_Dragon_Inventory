@@ -10,7 +10,8 @@
         currentView: "dashboard",
         validationTimer: null,
         validationSequence: 0,
-        currentConflicts: { duplicates: [], overlaps: [] }
+        currentConflicts: { duplicates: [], overlaps: [] },
+        overlapOverviewOpen: false
     };
 
     const $ = (id) => document.getElementById(id);
@@ -125,6 +126,12 @@
         }
 
         errors.push(...validateFitmentForm());
+
+        const overlapReason = normalizeInputValue($("vehicleOverlapReason")?.value || "");
+        if ($("vehicleHasOverlap")?.checked && overlapReason && !SmartDragonValidation.validateNote(overlapReason)) {
+            errors.push("سبب التداخل يحتوي على نص غير صالح.");
+        }
+
         return { valid: errors.length === 0, errors, vehicle };
     }
 
@@ -142,6 +149,14 @@
             type: overlapAcknowledged ? "warning" : "error",
             text: `تداخل سنوات مع: ${item.label}${overlapAcknowledged ? " — تم تأكيد أن التداخل مقصود." : " — عدّل النطاق أو فعّل خيار التداخل المقصود."}`
         }));
+
+        const reasonWrap = $("vehicleOverlapReasonWrap");
+        const reason = normalizeInputValue($("vehicleOverlapReason")?.value || "");
+        const needsReason = overlaps.length > 0 && overlapAcknowledged;
+        if (reasonWrap) reasonWrap.hidden = !needsReason;
+        if (needsReason && !reason) {
+            items.push({ type: "error", text: "اكتب سبب التداخل المقصود قبل الحفظ." });
+        }
 
         if (!items.length) {
             box.hidden = false;
@@ -209,6 +224,13 @@
 
         if (state.currentConflicts.overlaps.length && !$("vehicleHasOverlap").checked) {
             throw new Error("يوجد تداخل في نطاق السنوات. عدّل النطاق أو فعّل خيار التداخل المقصود بعد التحقق.");
+        }
+
+        if (state.currentConflicts.overlaps.length && $("vehicleHasOverlap").checked) {
+            const reason = normalizeInputValue($("vehicleOverlapReason").value);
+            if (!reason) {
+                throw new Error("اكتب سبب التداخل المقصود قبل الحفظ.");
+            }
         }
     }
 
@@ -295,12 +317,85 @@
         }
     }
 
+    function yearRangesOverlap(aStart, aEnd, bStart, bEnd) {
+        return Number(aStart) <= Number(bEnd) && Number(bStart) <= Number(aEnd);
+    }
+
+    function vehicleGroupKey(vehicle) {
+        return `${canonicalVehicleText(vehicle.make)}|${canonicalVehicleText(vehicle.model)}`;
+    }
+
+    function collectCurrentOverlaps() {
+        const groups = new Map();
+        state.vehicles.forEach((vehicle) => {
+            const key = vehicleGroupKey(vehicle);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(vehicle);
+        });
+
+        const overlaps = [];
+        groups.forEach((items) => {
+            const sorted = [...items].sort((a, b) => Number(a.yearStart) - Number(b.yearStart));
+            for (let i = 0; i < sorted.length; i += 1) {
+                for (let j = i + 1; j < sorted.length; j += 1) {
+                    const a = sorted[i];
+                    const b = sorted[j];
+                    const exact = Number(a.yearStart) === Number(b.yearStart) && Number(a.yearEnd) === Number(b.yearEnd);
+                    if (!exact && yearRangesOverlap(a.yearStart, a.yearEnd, b.yearStart, b.yearEnd)) {
+                        overlaps.push({ a, b });
+                    }
+                }
+            }
+        });
+        return overlaps;
+    }
+
+    function renderOverlapOverview() {
+        const panel = $("overlapOverview");
+        const details = $("overlapOverviewDetails");
+        const button = $("toggleOverlapOverviewButton");
+        const overlaps = collectCurrentOverlaps();
+
+        panel.hidden = false;
+        $("overlapOverviewCount").textContent = overlaps.length
+            ? `${overlaps.length} تداخل يحتاج مراجعة`
+            : "لا توجد تداخلات حالية";
+
+        if (!overlaps.length) {
+            panel.classList.add("clean");
+            details.hidden = true;
+            button.hidden = true;
+            details.innerHTML = "";
+            return;
+        }
+
+        panel.classList.remove("clean");
+        button.hidden = false;
+        button.textContent = state.overlapOverviewOpen ? "إخفاء التفاصيل" : "عرض التفاصيل";
+        details.hidden = !state.overlapOverviewOpen;
+        details.innerHTML = overlaps.map(({ a, b }) => `
+            <div class="admin-overlap-item">
+                <div>
+                    <strong>${escapeHtml(a.make)} ${escapeHtml(a.model)}</strong>
+                    <span>${escapeHtml(a.yearStart)}–${escapeHtml(a.yearEnd)} ↔ ${escapeHtml(b.yearStart)}–${escapeHtml(b.yearEnd)}</span>
+                    ${a.overlapReason || b.overlapReason ? `<small>${escapeHtml(a.overlapReason || b.overlapReason)}</small>` : '<small>لا يوجد سبب موثق للتداخل.</small>'}
+                </div>
+                <div class="admin-overlap-actions">
+                    <button class="admin-link-button" type="button" data-edit-vehicle="${escapeHtml(a.id)}">فتح الأول</button>
+                    <button class="admin-link-button" type="button" data-edit-vehicle="${escapeHtml(b.id)}">فتح الثاني</button>
+                </div>
+            </div>
+        `).join("");
+    }
+
     function renderVehicles() {
         const term = $("vehicleSearchInput").value.trim().toLowerCase();
         const rows = state.vehicles.filter((v) => {
             if (!term) return true;
             return `${v.make || ""} ${v.model || ""} ${v.arabicMake || ""}`.toLowerCase().includes(term);
         });
+
+        renderOverlapOverview();
 
         if (!rows.length) {
             $("vehiclesTableBody").innerHTML = '<tr><td colspan="6"><div class="admin-empty-state"><strong>لا توجد سجلات مطابقة</strong><span>يمكنك إضافة سجل جديد أو استيراد البيانات الحالية.</span></div></td></tr>';
@@ -369,7 +464,8 @@
                 yearStart: Number($("vehicleYearStart").value),
                 yearEnd: Number($("vehicleYearEnd").value),
                 dataQuality: "complete",
-                hasOverlap: $("vehicleHasOverlap").checked
+                hasOverlap: $("vehicleHasOverlap").checked,
+                overlapReason: $("vehicleHasOverlap").checked ? $("vehicleOverlapReason").value : ""
             },
             fitments
         };
@@ -390,6 +486,8 @@
         $("vehicleForm").reset();
         state.currentConflicts = { duplicates: [], overlaps: [] };
         $("vehicleValidationSummary").hidden = true;
+        $("vehicleOverlapReasonWrap").hidden = true;
+        $("vehicleOverlapReason").value = "";
         $("vehicleId").value = vehicleId || "";
         $("deleteVehicleButton").hidden = true;
         message($("vehicleFormMessage"), "");
@@ -418,6 +516,7 @@
             $("vehicleYearStart").value = record.yearStart || "";
             $("vehicleYearEnd").value = record.yearEnd || "";
             $("vehicleHasOverlap").checked = record.hasOverlap === true;
+            $("vehicleOverlapReason").value = record.overlapReason || "";
 
             const lighting = findFitment(record, "lighting")?.fields || {};
             $("fitLowBeam").value = bulbText(lighting.lowBeam);
@@ -634,11 +733,15 @@
         });
 
         $("vehicleSearchInput").addEventListener("input", renderVehicles);
+        $("toggleOverlapOverviewButton").addEventListener("click", () => {
+            state.overlapOverviewOpen = !state.overlapOverviewOpen;
+            renderOverlapOverview();
+        });
         $("addVehicleButton").addEventListener("click", () => openVehicleModal());
         $("vehicleForm").addEventListener("submit", submitVehicle);
         [
             "vehicleMake", "vehicleModel", "vehicleArabicMake", "vehicleArabicKeywords",
-            "vehicleYearStart", "vehicleYearEnd", "vehicleHasOverlap",
+            "vehicleYearStart", "vehicleYearEnd", "vehicleHasOverlap", "vehicleOverlapReason",
             "fitLowBeam", "fitHighBeam", "fitFogLight",
             "fitWiperDriver", "fitWiperPassenger", "fitWiperRear", "fitScreen"
         ].forEach((id) => {
