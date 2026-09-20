@@ -1221,3 +1221,44 @@ code {
 #usersTableBody .admin-link-button.danger {
     color: #ff8c98;
 }
+
+
+/* =========================================================
+   Audit Log
+   ========================================================= */
+
+.admin-audit-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.admin-audit-filters label {
+    display: grid;
+    gap: 7px;
+    color: #c8cfd3;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.admin-audit-filters input,
+.admin-audit-filters select {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 11px;
+    background: var(--surface-soft);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    outline: none;
+}
+
+.admin-audit-table { min-width: 980px; }
+.admin-audit-time { white-space: nowrap; }
+.admin-audit-details { max-width: 360px; line-height: 1.65; }
+.admin-audit-meta { display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.74rem; }
+
+@media (max-width: 820px) {
+    .admin-audit-filters { grid-template-columns: 1fr; }
+}

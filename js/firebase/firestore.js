@@ -430,16 +430,25 @@
             if (!payload.vehicle.hasOverlap) payload.vehicle.overlapReason = "";
         }
 
+        const vehicleLabel = cleanText(changeRequest?.vehicleLabel, 250);
+        const targetVehicleId = cleanText(changeRequest?.targetVehicleId, 150) || null;
+
         const ref = await db().collection(col("changeRequests")).add({
             operation,
-            targetVehicleId: cleanText(changeRequest?.targetVehicleId, 150) || null,
+            targetVehicleId,
             payload,
-            vehicleLabel: cleanText(changeRequest?.vehicleLabel, 250),
+            vehicleLabel,
             status: "pending_review",
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             createdByUid: user.uid,
             createdByEmail: cleanText(user.email, 200),
             createdByRole: profile.role
+        });
+
+        await writeAudit("change_request_created", ref.id, {
+            operation,
+            targetVehicleId,
+            vehicleLabel
         });
 
         return ref.id;
@@ -934,16 +943,31 @@
         return written;
     }
 
+    async function listAuditLogs(options = {}) {
+        authContext();
+        if (!isOwner()) throw new Error("سجل التعديلات متاح للمالك فقط.");
+
+        const limit = Math.max(1, Math.min(500, Number(options?.limit) || 300));
+        const snapshot = await db().collection(col("auditLogs"))
+            .orderBy("createdAt", "desc")
+            .limit(limit)
+            .get();
+
+        return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    }
+
     async function writeAudit(action, targetId, details = {}) {
         const user = window.SmartDragonAuth?.getCurrentUser?.();
-        if (!user || !isOwner()) return;
+        const profile = window.SmartDragonAuth?.getCurrentUserProfile?.();
+        if (!user || !profile?.enabled || !["owner", "editor"].includes(profile.role)) return;
         try {
             await db().collection(col("auditLogs")).add({
                 action: cleanText(action, 100),
                 targetId: cleanText(targetId, 200),
-                details,
+                details: details && typeof details === "object" ? details : {},
                 actorUid: user.uid,
                 actorEmail: cleanText(user.email, 200),
+                actorRole: profile.role,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         } catch (error) {
@@ -981,6 +1005,7 @@
         setInviteEnabled,
         updateManagedUser,
         deleteManagedUser,
+        listAuditLogs,
         getDashboardStats,
         importLegacyVehicles
     });

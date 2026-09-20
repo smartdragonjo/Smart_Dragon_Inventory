@@ -90,7 +90,17 @@ service cloud.firestore {
     }
 
     match /audit_logs/{logId} {
-      allow read, create: if isOwner();
+      allow read: if isOwner();
+
+      // Owner and enabled editors may append their own immutable audit events.
+      // They cannot impersonate another user and no audit record can be edited or deleted.
+      allow create: if isAdminUser()
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.actorEmail == request.auth.token.email
+        && request.resource.data.actorRole in ['owner', 'editor']
+        && request.resource.data.action is string
+        && request.resource.data.targetId is string;
+
       allow update, delete: if false;
     }
 

@@ -35,7 +35,7 @@
             <button class="admin-nav-item" type="button" data-view="reviews">طلبات المراجعة</button>
             <button class="admin-nav-item" type="button" data-view="categories">الأصناف</button>
             <button class="admin-nav-item owner-only" type="button" data-view="users">المستخدمون</button>
-            <button class="admin-nav-item owner-only" type="button" disabled>سجل التعديلات</button>
+            <button class="admin-nav-item owner-only" type="button" data-view="audit">سجل التعديلات</button>
             <button class="admin-nav-item owner-only" type="button" disabled>النسخ الاحتياطية</button>
         </nav>
     </aside>
@@ -162,6 +162,58 @@
                         </thead>
                         <tbody id="usersTableBody">
                             <tr><td colspan="6"><div class="admin-empty-state"><strong>جاري التحميل...</strong></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <section id="auditView" class="admin-view">
+            <section class="admin-panel">
+                <div class="admin-panel-header">
+                    <div>
+                        <h2>سجل التعديلات</h2>
+                        <p>سجل زمني للعمليات الإدارية وطلبات المحررين. السجل للقراءة فقط ولا يمكن تعديله أو حذفه.</p>
+                    </div>
+                    <button id="refreshAuditButton" class="admin-secondary-button owner-only" type="button">تحديث</button>
+                </div>
+
+                <div class="admin-audit-filters">
+                    <label>نوع العملية
+                        <select id="auditActionFilter">
+                            <option value="">كل العمليات</option>
+                            <option value="vehicle_saved">حفظ / نشر سيارة</option>
+                            <option value="vehicle_deleted">حذف سيارة</option>
+                            <option value="change_request_created">إرسال طلب مراجعة</option>
+                            <option value="change_request_approved">اعتماد طلب</option>
+                            <option value="change_request_rejected">رفض طلب</option>
+                            <option value="category_created">إضافة صنف</option>
+                            <option value="category_updated">تعديل صنف</option>
+                            <option value="editor_invited">دعوة محرر</option>
+                            <option value="editor_invite_updated">تحديث دعوة محرر</option>
+                            <option value="editor_enabled">تفعيل محرر</option>
+                            <option value="editor_disabled">تعطيل محرر</option>
+                            <option value="editor_updated">تعديل محرر</option>
+                            <option value="editor_deleted">حذف محرر</option>
+                            <option value="legacy_import">استيراد البيانات القديمة</option>
+                        </select>
+                    </label>
+                    <label>المستخدم
+                        <input id="auditActorFilter" type="search" placeholder="البريد أو UID">
+                    </label>
+                    <label>السجل / الهدف
+                        <input id="auditTargetFilter" type="search" placeholder="معرف السيارة أو الطلب...">
+                    </label>
+                </div>
+
+                <div id="auditMessage" class="admin-message" hidden></div>
+                <div class="admin-table-wrapper">
+                    <table class="admin-table admin-audit-table">
+                        <thead>
+                            <tr><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>الهدف</th><th>التفاصيل</th></tr>
+                        </thead>
+                        <tbody id="auditTableBody">
+                            <tr><td colspan="5"><div class="admin-empty-state"><strong>جاري التحميل...</strong></div></td></tr>
                         </tbody>
                     </table>
                 </div>

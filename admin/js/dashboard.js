@@ -15,7 +15,8 @@
         categories: [],
         editingCategorySlug: null,
         users: [],
-        editingUser: null
+        editingUser: null,
+        auditLogs: []
     };
 
     const $ = (id) => document.getElementById(id);
@@ -335,7 +336,8 @@
             vehicles: ["vehiclesView", "السيارات", "إضافة وتعديل سجلات السيارات وبيانات التوافق."],
             reviews: ["reviewsView", "طلبات المراجعة", "اعتماد أو رفض تعديلات المحررين."],
             categories: ["categoriesView", "الأصناف", "إدارة فئات وحقول بيانات التوافق بشكل ديناميكي."],
-            users: ["usersView", "المستخدمون", "إدارة المحررين ودعوات الدخول إلى لوحة الإدارة."]
+            users: ["usersView", "المستخدمون", "إدارة المحررين ودعوات الدخول إلى لوحة الإدارة."],
+            audit: ["auditView", "سجل التعديلات", "متابعة العمليات الإدارية وطلبات المحررين."]
         };
 
         const [id, title, subtitle] = map[view] || map.dashboard;
@@ -348,6 +350,7 @@
         if (view === "reviews") loadReviews();
         if (view === "categories") loadCategories();
         if (view === "users") loadUsers();
+        if (view === "audit") loadAuditLogs();
     }
 
     async function loadStats() {
@@ -1048,6 +1051,98 @@
         }
     }
 
+    const AUDIT_ACTION_LABELS = Object.freeze({
+        vehicle_saved: "حفظ / نشر سيارة",
+        vehicle_deleted: "حذف سيارة",
+        change_request_created: "إرسال طلب مراجعة",
+        change_request_approved: "اعتماد طلب مراجعة",
+        change_request_rejected: "رفض طلب مراجعة",
+        category_created: "إضافة صنف",
+        category_updated: "تعديل صنف",
+        editor_invited: "دعوة محرر",
+        editor_invite_updated: "تحديث دعوة محرر",
+        editor_enabled: "تفعيل محرر",
+        editor_disabled: "تعطيل محرر",
+        editor_invite_enabled: "تفعيل دعوة محرر",
+        editor_invite_disabled: "تعطيل دعوة محرر",
+        editor_updated: "تعديل محرر",
+        editor_deleted: "حذف محرر",
+        legacy_import: "استيراد البيانات القديمة"
+    });
+
+    function auditDateText(value) {
+        const date = value?.toDate?.() || (value ? new Date(value) : null);
+        if (!date || Number.isNaN(date.getTime())) return "—";
+        return new Intl.DateTimeFormat("ar-JO", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+        }).format(date);
+    }
+
+    function auditDetailsText(details) {
+        if (!details || typeof details !== "object") return "—";
+        const parts = [];
+        if (details.vehicleLabel) parts.push(details.vehicleLabel);
+        if (details.operation) {
+            const op = { create: "إضافة", update: "تعديل", delete: "حذف" }[details.operation] || details.operation;
+            parts.push(`النوع: ${op}`);
+        }
+        if (details.email) parts.push(details.email);
+        if (details.displayName) parts.push(details.displayName);
+        if (details.reason) parts.push(`السبب: ${details.reason}`);
+        if (details.recordCount !== undefined) parts.push(`${details.recordCount} سجل`);
+        if (details.fitmentCount !== undefined) parts.push(`${details.fitmentCount} توافق`);
+        if (details.targetVehicleId) parts.push(`السيارة: ${details.targetVehicleId}`);
+        return parts.length ? parts.join(" • ") : "—";
+    }
+
+    async function loadAuditLogs() {
+        if (!isOwner()) return;
+        message($("auditMessage"), "");
+        $("auditTableBody").innerHTML = '<tr><td colspan="5"><div class="admin-empty-state"><strong>جاري تحميل السجل...</strong></div></td></tr>';
+        try {
+            state.auditLogs = await SmartDragonFirestore.listAuditLogs({ limit: 300 });
+            renderAuditLogs();
+        } catch (error) {
+            console.error(error);
+            $("auditTableBody").innerHTML = '<tr><td colspan="5"><div class="admin-empty-state"><strong>تعذر تحميل سجل التعديلات</strong></div></td></tr>';
+            message($("auditMessage"), error.message || "تعذر تحميل سجل التعديلات.", "error");
+        }
+    }
+
+    function renderAuditLogs() {
+        const actionFilter = $("auditActionFilter")?.value || "";
+        const actorFilter = normalizeInputValue($("auditActorFilter")?.value || "").toLowerCase();
+        const targetFilter = normalizeInputValue($("auditTargetFilter")?.value || "").toLowerCase();
+
+        const rows = state.auditLogs.filter((log) => {
+            if (actionFilter && log.action !== actionFilter) return false;
+            const actorHaystack = `${log.actorEmail || ""} ${log.actorUid || ""}`.toLowerCase();
+            if (actorFilter && !actorHaystack.includes(actorFilter)) return false;
+            const targetHaystack = `${log.targetId || ""} ${auditDetailsText(log.details)}`.toLowerCase();
+            if (targetFilter && !targetHaystack.includes(targetFilter)) return false;
+            return true;
+        });
+
+        if (!rows.length) {
+            $("auditTableBody").innerHTML = '<tr><td colspan="5"><div class="admin-empty-state"><strong>لا توجد سجلات مطابقة</strong><span>جرّب تغيير عوامل التصفية.</span></div></td></tr>';
+            return;
+        }
+
+        $("auditTableBody").innerHTML = rows.map((log) => `
+            <tr>
+                <td class="admin-audit-time">${escapeHtml(auditDateText(log.createdAt))}</td>
+                <td><strong>${escapeHtml(log.actorEmail || "—")}</strong><small class="admin-audit-meta">${escapeHtml(log.actorRole || "")}</small></td>
+                <td><span class="admin-badge ${log.action?.includes("deleted") || log.action?.includes("rejected") ? "warning" : "approved"}">${escapeHtml(AUDIT_ACTION_LABELS[log.action] || log.action || "عملية")}</span></td>
+                <td><code>${escapeHtml(log.targetId || "—")}</code></td>
+                <td class="admin-audit-details">${escapeHtml(auditDetailsText(log.details))}</td>
+            </tr>
+        `).join("");
+    }
+
     function bindEvents() {
         $("googleSignInButton").addEventListener("click", async () => {
             const button = $("googleSignInButton");
@@ -1094,6 +1189,10 @@
         document.querySelectorAll("[data-close-modal='true']").forEach((el) => el.addEventListener("click", closeVehicleModal));
         $("importLegacyButton").addEventListener("click", importLegacy);
         $("bulkApproveButton").addEventListener("click", bulkApprove);
+        $("refreshAuditButton")?.addEventListener("click", loadAuditLogs);
+        $("auditActionFilter")?.addEventListener("change", renderAuditLogs);
+        $("auditActorFilter")?.addEventListener("input", renderAuditLogs);
+        $("auditTargetFilter")?.addEventListener("input", renderAuditLogs);
         $("addCategoryButton").addEventListener("click", () => openCategoryModal());
         $("addUserButton").addEventListener("click", openUserModal);
         $("userForm").addEventListener("submit", submitUserInvite);
