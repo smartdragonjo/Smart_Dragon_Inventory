@@ -1,40 +1,16 @@
 /**
  * Smart Dragon Inventory
  * Public Beta Configuration
- *
- * Current public architecture:
- *
- * - Vehicle compatibility data:
- *   data/vehicles.json
- *
- * - Accessory links:
- *   Real Firestore collection "cars"
- *
- * - Firebase Authentication:
- *   Not enabled on the public Inventory interface
- *
- * - Admin / editing:
- *   Not enabled on the public interface
- *
- * - Smart Dragon AI:
- *   Reserved for future integration
  */
 
 window.SmartDragonConfig =
     Object.freeze({
 
-        /**
-         * Public website mode.
-         */
         APP_MODE:
             "production",
 
-
-        /**
-         * Current project stage.
-         */
         PROJECT_STAGE:
-            "PUBLIC_BETA",
+            "PUBLIC_BETA_AI",
 
 
         WEBSITE:
@@ -48,48 +24,21 @@ window.SmartDragonConfig =
             }),
 
 
-        /**
-         * Feature flags.
-         */
         FEATURES:
             Object.freeze({
 
-                /**
-                 * Public vehicle selector.
-                 */
                 vehicleSearch:
                     true,
 
-
-                /**
-                 * Vehicle compatibility currently comes
-                 * from the prepared local JSON dataset.
-                 *
-                 * This can later be replaced by Firestore
-                 * without changing the public UI flow.
-                 */
                 localDataPreview:
                     true,
 
-
-                /**
-                 * Firebase is currently used for
-                 * read-only accessory-link integration.
-                 */
                 firebase:
                     true,
 
-
-                /**
-                 * Public Inventory does not require login.
-                 */
                 authentication:
                     false,
 
-
-                /**
-                 * Admin features remain separate.
-                 */
                 adminPanel:
                     false,
 
@@ -105,18 +54,27 @@ window.SmartDragonConfig =
                 backups:
                     false,
 
-
                 /**
-                 * Future Smart Dragon AI.
+                 * Smart Dragon AI product recommendations.
                  */
                 aiRecommendations:
-                    false
+                    true
             }),
 
 
         /**
-         * Planned application roles.
+         * Smart Dragon backend.
+         *
+         * No GLM secret is stored here.
          */
+        API:
+            Object.freeze({
+
+                vehicleRecommendations:
+                    "https://smartdragonjo.com/smart-dragon-api/vehicle-recommendations.php"
+            }),
+
+
         ROLES:
             Object.freeze({
 
@@ -128,9 +86,6 @@ window.SmartDragonConfig =
             }),
 
 
-        /**
-         * Required customer selection flow.
-         */
         VEHICLE_SELECTION:
             Object.freeze({
 
@@ -143,9 +98,6 @@ window.SmartDragonConfig =
             }),
 
 
-        /**
-         * Review workflow statuses.
-         */
         CHANGE_STATUS:
             Object.freeze({
 
@@ -163,9 +115,6 @@ window.SmartDragonConfig =
             }),
 
 
-        /**
-         * Current structured vehicle dataset.
-         */
         LOCAL_DATA:
             Object.freeze({
 
@@ -174,15 +123,9 @@ window.SmartDragonConfig =
             }),
 
 
-        /**
-         * UI behavior.
-         */
         DEVELOPMENT:
             Object.freeze({
 
-                /**
-                 * Keep false on public beta.
-                 */
                 disableVehicleControls:
                     false,
 
@@ -195,12 +138,6 @@ window.SmartDragonConfig =
     });
 
 
-/**
- * Basic application initialization.
- *
- * This is NOT a security boundary.
- * Security is enforced by Firestore Security Rules.
- */
 document.addEventListener(
     "DOMContentLoaded",
     () => {
@@ -229,9 +166,6 @@ document.addEventListener(
         );
 
 
-        /**
-         * Emergency/development lock.
-         */
         if (
             config
                 .DEVELOPMENT
