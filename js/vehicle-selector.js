@@ -544,9 +544,12 @@ async function loadMakes() {
 
     try {
 
-        const makes =
-            await VehicleDataProvider
-                .getMakes();
+        const [makes] = await Promise.all([
+            VehicleDataProvider.getMakes(),
+            // Warm the small category-definition cache while the first selector loads,
+            // so the final vehicle result only needs its fitment query.
+            window.SmartDragonFirestore?.getPublicCategories?.().catch(() => []) ?? Promise.resolve([])
+        ]);
 
         if (makes.length === 0) {
             resetSelect(

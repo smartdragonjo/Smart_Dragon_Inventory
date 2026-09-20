@@ -126,6 +126,47 @@
         return { id: snapshot.id, ...snapshot.data() };
     }
 
+    const PUBLIC_CACHE_PREFIX = "smartDragonVehicleSearch:v10:";
+    const PUBLIC_CACHE_TTL_MS = 10 * 60 * 1000;
+    const modelCache = new Map();
+    const vehicleGroupCache = new Map();
+    let publicCategoriesCache = null;
+
+    function publicCacheKey(name) {
+        return `${PUBLIC_CACHE_PREFIX}${name}`;
+    }
+
+    function readSessionCache(name) {
+        try {
+            const raw = sessionStorage.getItem(publicCacheKey(name));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !Array.isArray(parsed.value) || !Number.isFinite(parsed.savedAt)) return null;
+            if (Date.now() - parsed.savedAt > PUBLIC_CACHE_TTL_MS) {
+                sessionStorage.removeItem(publicCacheKey(name));
+                return null;
+            }
+            return parsed.value;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function writeSessionCache(name, value) {
+        try {
+            sessionStorage.setItem(publicCacheKey(name), JSON.stringify({
+                savedAt: Date.now(),
+                value
+            }));
+        } catch (error) {
+            // Session storage is an optimization only. Firestore remains authoritative.
+        }
+    }
+
+    function groupCacheKey(make, model) {
+        return `${vehicleKey(make, 100)}|${vehicleKey(model, 150)}`;
+    }
+
     async function loadApprovedVehicles(force = false) {
         if (!force && approvedVehiclesCache) {
             return approvedVehiclesCache;
@@ -144,32 +185,110 @@
 
     function clearPublicVehicleCache() {
         approvedVehiclesCache = null;
+        modelCache.clear();
+        vehicleGroupCache.clear();
+        publicCategoriesCache = null;
+        try {
+            Object.keys(sessionStorage)
+                .filter((key) => key.startsWith(PUBLIC_CACHE_PREFIX))
+                .forEach((key) => sessionStorage.removeItem(key));
+        } catch (error) {
+            // Ignore storage cleanup failures.
+        }
     }
 
     async function getVehicleMakes() {
+        const cached = readSessionCache("makes");
+        if (cached) return cached;
+
+        // Firestore does not provide DISTINCT queries in the browser SDK, so the
+        // make list still needs one approved-vehicles read on a cold session.
+        // The result is cached for the session; model/year lookups below are progressive.
         const vehicles = await loadApprovedVehicles();
-        return [...new Set(vehicles.map((v) => cleanText(v.make)).filter(Boolean))]
+        const makes = [...new Set(vehicles.map((v) => cleanText(v.make)).filter(Boolean))]
             .sort((a, b) => a.localeCompare(b));
+        writeSessionCache("makes", makes);
+        return makes;
+    }
+
+    async function queryApprovedVehiclesByMake(make) {
+        const makeValue = cleanText(make, 100);
+        const cacheKey = vehicleKey(makeValue, 100);
+        if (modelCache.has(cacheKey)) return modelCache.get(cacheKey);
+
+        try {
+            const snapshot = await db().collection(col("vehicles"))
+                .where("status", "==", "approved")
+                .where("make", "==", makeValue)
+                .get();
+            const rows = snapshot.docs.map(vehicleFromSnapshot);
+            modelCache.set(cacheKey, rows);
+            return rows;
+        } catch (error) {
+            // If a project temporarily lacks an index, keep the public search usable.
+            console.warn("[Smart Dragon Firestore] Make query fallback", error);
+            const rows = (await loadApprovedVehicles()).filter(
+                (v) => cleanText(v.make, 100) === makeValue
+            );
+            modelCache.set(cacheKey, rows);
+            return rows;
+        }
+    }
+
+    async function queryApprovedVehicleGroup(make, model) {
+        const makeValue = cleanText(make, 100);
+        const modelValue = cleanText(model, 150);
+        const key = groupCacheKey(makeValue, modelValue);
+        if (vehicleGroupCache.has(key)) return vehicleGroupCache.get(key);
+
+        const sessionKey = `group:${key}`;
+        const cached = readSessionCache(sessionKey);
+        if (cached) {
+            vehicleGroupCache.set(key, cached);
+            return cached;
+        }
+
+        try {
+            const snapshot = await db().collection(col("vehicles"))
+                .where("status", "==", "approved")
+                .where("make", "==", makeValue)
+                .where("model", "==", modelValue)
+                .get();
+            const rows = snapshot.docs.map(vehicleFromSnapshot);
+            vehicleGroupCache.set(key, rows);
+            writeSessionCache(sessionKey, rows);
+            return rows;
+        } catch (error) {
+            console.warn("[Smart Dragon Firestore] Make/model query fallback", error);
+            const rows = (await queryApprovedVehiclesByMake(makeValue)).filter(
+                (v) => cleanText(v.model, 150) === modelValue
+            );
+            vehicleGroupCache.set(key, rows);
+            writeSessionCache(sessionKey, rows);
+            return rows;
+        }
     }
 
     async function getVehicleModels(make) {
-        const makeKey = cleanText(make, 100);
-        const vehicles = await loadApprovedVehicles();
-        return [...new Set(vehicles
-            .filter((v) => cleanText(v.make, 100) === makeKey)
+        const makeValue = cleanText(make, 100);
+        const sessionKey = `models:${vehicleKey(makeValue, 100)}`;
+        const cached = readSessionCache(sessionKey);
+        if (cached) return cached;
+
+        const vehicles = await queryApprovedVehiclesByMake(makeValue);
+        const models = [...new Set(vehicles
             .map((v) => cleanText(v.model))
             .filter(Boolean))]
             .sort((a, b) => a.localeCompare(b));
+        writeSessionCache(sessionKey, models);
+        return models;
     }
 
     async function getVehicleYears(make, model) {
-        const makeKey = cleanText(make, 100);
-        const modelKey = cleanText(model, 150);
-        const vehicles = await loadApprovedVehicles();
+        const vehicles = await queryApprovedVehicleGroup(make, model);
         const years = new Set();
 
         vehicles.forEach((data) => {
-            if (cleanText(data.make, 100) !== makeKey || cleanText(data.model, 150) !== modelKey) return;
             const start = Number(data.yearStart);
             const end = Number(data.yearEnd);
             if (!Number.isInteger(start) || !Number.isInteger(end)) return;
@@ -181,14 +300,10 @@
 
     async function findVehicleMatches(make, model, year) {
         const y = Number(year);
-        const makeKey = cleanText(make, 100);
-        const modelKey = cleanText(model, 150);
         if (!Number.isInteger(y)) return [];
 
-        const vehicles = await loadApprovedVehicles();
+        const vehicles = await queryApprovedVehicleGroup(make, model);
         return vehicles.filter((v) =>
-            cleanText(v.make, 100) === makeKey &&
-            cleanText(v.model, 150) === modelKey &&
             y >= Number(v.yearStart) &&
             y <= Number(v.yearEnd)
         );
@@ -197,7 +312,15 @@
     async function getVehicleFitment(make, model, year) {
         const matches = await findVehicleMatches(make, model, year);
         if (matches.length !== 1) return null;
-        return getVehicleRecord(matches[0].id);
+
+        // Reuse the already-fetched vehicle document instead of reading it again.
+        const vehicle = matches[0];
+        const fitmentSnap = await db().collection(col("vehicleFitments"))
+            .where("vehicleId", "==", vehicle.id)
+            .where("status", "==", "approved")
+            .get();
+        const fitments = fitmentSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        return { ...vehicle, fitments };
     }
 
     async function getAccessoriesLink(make, model) {
@@ -541,12 +664,22 @@
     }
 
     async function getPublicCategories() {
+        if (publicCategoriesCache) return publicCategoriesCache;
+
+        const cached = readSessionCache("categories");
+        if (cached) {
+            publicCategoriesCache = cached;
+            return cached;
+        }
+
         const snapshot = await db().collection(col("categories"))
             .where("active", "==", true)
             .get();
-        return snapshot.docs
+        publicCategoriesCache = snapshot.docs
             .map((doc) => ({ id: doc.id, ...doc.data() }))
             .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ar"));
+        writeSessionCache("categories", publicCategoriesCache);
+        return publicCategoriesCache;
     }
 
     function normalizeCategoryFields(fieldsDefinition) {
