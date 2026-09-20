@@ -439,13 +439,27 @@
     }
 
     async function listPendingChangeRequests() {
-        authContext();
-        const snapshot = await db().collection(col("changeRequests"))
-            .where("status", "==", "pending_review")
-            .limit(200)
-            .get();
+        const { user, profile } = authContext();
+        let snapshot;
+
+        if (profile.role === "owner") {
+            snapshot = await db().collection(col("changeRequests"))
+                .where("status", "==", "pending_review")
+                .limit(200)
+                .get();
+        } else {
+            // Security Rules allow editors to read only their own requests.
+            // Query by creator first, then filter status locally so Firestore
+            // never evaluates a query that could return another editor's data.
+            snapshot = await db().collection(col("changeRequests"))
+                .where("createdByUid", "==", user.uid)
+                .limit(200)
+                .get();
+        }
+
         return snapshot.docs
             .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .filter((item) => item.status === "pending_review")
             .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
     }
 
@@ -679,6 +693,20 @@
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedByUid: user.uid
         });
+
+        const email = normalizeEmailAddress(data.email);
+        if (email) {
+            const inviteRef = db().collection(col("userInvites")).doc(email);
+            const inviteSnap = await inviteRef.get();
+            if (inviteSnap.exists) {
+                await inviteRef.update({
+                    enabled: enabled === true,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedByUid: user.uid
+                });
+            }
+        }
+
         await writeAudit(enabled ? "editor_enabled" : "editor_disabled", ref.id, { email: data.email || "" });
     }
 
@@ -695,6 +723,59 @@
             updatedByUid: user.uid
         });
         await writeAudit(enabled ? "editor_invite_enabled" : "editor_invite_disabled", email);
+    }
+
+
+
+    async function updateManagedUser(record) {
+        const { user } = authContext();
+        if (!isOwner()) throw new Error("إدارة المستخدمين متاحة للمالك فقط.");
+
+        const displayName = cleanText(record?.displayName, 120);
+        const email = validateEditorEmail(record?.email);
+        const now = firebase.firestore.FieldValue.serverTimestamp();
+
+        if (record?.joined && record?.uid) {
+            const userRef = db().collection(col("users")).doc(String(record.uid));
+            const snap = await userRef.get();
+            if (!snap.exists) throw new Error("المستخدم غير موجود.");
+            await userRef.update({
+                displayName: displayName || email,
+                updatedAt: now,
+                updatedByUid: user.uid
+            });
+        }
+
+        const inviteRef = db().collection(col("userInvites")).doc(email);
+        const inviteSnap = await inviteRef.get();
+        if (inviteSnap.exists) {
+            await inviteRef.update({
+                displayName,
+                updatedAt: now,
+                updatedByUid: user.uid
+            });
+        }
+
+        await writeAudit("editor_updated", record?.uid || email, { email, displayName });
+    }
+
+    async function deleteManagedUser(record) {
+        const { user } = authContext();
+        if (!isOwner()) throw new Error("إدارة المستخدمين متاحة للمالك فقط.");
+
+        const email = validateEditorEmail(record?.email);
+        const batch = db().batch();
+
+        if (record?.joined && record?.uid) {
+            batch.delete(db().collection(col("users")).doc(String(record.uid)));
+        }
+
+        const inviteRef = db().collection(col("userInvites")).doc(email);
+        const inviteSnap = await inviteRef.get();
+        if (inviteSnap.exists) batch.delete(inviteRef);
+
+        await batch.commit();
+        await writeAudit("editor_deleted", record?.uid || email, { email, deletedByUid: user.uid });
     }
 
     async function listManagedUsers() {
@@ -737,20 +818,33 @@
     }
 
     async function getDashboardStats() {
-        authContext();
+        const { user, profile } = authContext();
+
+        const vehiclePromise = db().collection(col("vehicles")).get();
+        const categoryPromise = db().collection(col("categories")).get();
+        const requestPromise = profile.role === "owner"
+            ? db().collection(col("changeRequests")).where("status", "==", "pending_review").get()
+            : db().collection(col("changeRequests")).where("createdByUid", "==", user.uid).limit(200).get();
+
         const [vehicles, requests, categories] = await Promise.all([
-            db().collection(col("vehicles")).get(),
-            db().collection(col("changeRequests")).where("status", "==", "pending_review").get(),
-            db().collection(col("categories")).get()
+            vehiclePromise,
+            requestPromise,
+            categoryPromise
         ]);
-        let userCount = 1;
-        if (isOwner()) {
+
+        const pending = profile.role === "owner"
+            ? requests.size
+            : requests.docs.filter((doc) => doc.data()?.status === "pending_review").length;
+
+        let userCount = null;
+        if (profile.role === "owner") {
             const managedUsers = await listManagedUsers();
-            userCount += managedUsers.length;
+            userCount = 1 + managedUsers.length;
         }
+
         return {
             vehicles: vehicles.size,
-            pending: requests.size,
+            pending,
             categories: categories.size,
             users: userCount
         };
@@ -868,6 +962,8 @@
         createEditorInvite,
         setUserEnabled,
         setInviteEnabled,
+        updateManagedUser,
+        deleteManagedUser,
         getDashboardStats,
         importLegacyVehicles
     });

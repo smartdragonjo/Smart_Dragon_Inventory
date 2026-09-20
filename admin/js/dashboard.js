@@ -14,7 +14,8 @@
         overlapOverviewOpen: false,
         categories: [],
         editingCategorySlug: null,
-        users: []
+        users: [],
+        editingUser: null
     };
 
     const $ = (id) => document.getElementById(id);
@@ -355,7 +356,7 @@
             $("statVehicles").textContent = stats.vehicles;
             $("statPending").textContent = stats.pending;
             $("statCategories").textContent = stats.categories;
-            $("statUsers").textContent = stats.users;
+            $("statUsers").textContent = stats.users ?? "—";
         } catch (error) {
             console.error(error);
             message($("dashboardMessage"), error.message || "تعذر تحميل الإحصائيات.", "error");
@@ -937,7 +938,7 @@
             const activeClass = user.enabled ? "approved" : "neutral";
             const joinedLabel = user.joined ? "مسجل" : "بانتظار أول دخول";
             const actionLabel = user.enabled ? "تعطيل" : "تفعيل";
-            const actionAttr = user.joined
+            const toggleAttr = user.joined
                 ? `data-toggle-user="${escapeHtml(user.uid)}" data-next-enabled="${user.enabled ? "false" : "true"}`
                 : `data-toggle-invite="${escapeHtml(user.email)}" data-next-enabled="${user.enabled ? "false" : "true"}`;
             return `
@@ -947,23 +948,39 @@
                     <td><span class="admin-badge">Editor</span></td>
                     <td><span class="admin-badge ${activeClass}">${activeLabel}</span></td>
                     <td>${joinedLabel}</td>
-                    <td><button class="admin-link-button ${user.enabled ? "danger" : ""}" type="button" ${actionAttr}>${actionLabel}</button></td>
+                    <td>
+                        <div class="admin-row-actions">
+                            <button class="admin-link-button" type="button" data-edit-user="${escapeHtml(user.email)}">تعديل</button>
+                            <button class="admin-link-button ${user.enabled ? "danger" : ""}" type="button" ${toggleAttr}>${actionLabel}</button>
+                            <button class="admin-link-button danger" type="button" data-delete-user="${escapeHtml(user.email)}">حذف</button>
+                        </div>
+                    </td>
                 </tr>`;
         }).join("");
 
         body.innerHTML = ownerRow + (rows || '<tr><td colspan="6"><div class="admin-empty-state"><strong>لا يوجد محررون بعد</strong></div></td></tr>');
     }
 
-    function openUserModal() {
+    function openUserModal(user = null) {
         if (!isOwner()) return;
+        state.editingUser = user || null;
         $("userForm").reset();
         message($("userFormMessage"), "");
+
+        const editing = Boolean(user);
+        $("userModalTitle").textContent = editing ? "تعديل المحرر" : "إضافة محرر";
+        $("saveUserButton").textContent = editing ? "حفظ التعديل" : "إرسال الدعوة";
+        $("userDisplayName").value = user?.displayName || "";
+        $("userInviteEmail").value = user?.email || "";
+        $("userInviteEmail").disabled = editing;
         $("userModal").hidden = false;
-        setTimeout(() => $("userInviteEmail")?.focus(), 0);
+        setTimeout(() => (editing ? $("userDisplayName") : $("userInviteEmail"))?.focus(), 0);
     }
 
     function closeUserModal() {
         $("userModal").hidden = true;
+        $("userInviteEmail").disabled = false;
+        state.editingUser = null;
     }
 
     async function submitUserInvite(event) {
@@ -971,16 +988,27 @@
         if (!isOwner()) return;
         const button = $("saveUserButton");
         try {
-            setBusy(button, true, "جاري الحفظ...");
-            const email = normalizeInputValue($("userInviteEmail").value).toLowerCase();
+            setBusy(button, true, state.editingUser ? "جاري الحفظ..." : "جاري الإضافة...");
+            const email = state.editingUser?.email || normalizeInputValue($("userInviteEmail").value).toLowerCase();
             const displayName = normalizeInputValue($("userDisplayName").value);
-            await SmartDragonFirestore.createEditorInvite(email, displayName);
-            message($("userFormMessage"), "تمت إضافة الدعوة. يستطيع المستخدم الآن تسجيل الدخول بحساب Google نفسه.", "success");
+
+            if (state.editingUser) {
+                await SmartDragonFirestore.updateManagedUser({
+                    ...state.editingUser,
+                    email,
+                    displayName
+                });
+                message($("userFormMessage"), "تم تعديل بيانات المحرر.", "success");
+            } else {
+                await SmartDragonFirestore.createEditorInvite(email, displayName);
+                message($("userFormMessage"), "تمت إضافة الدعوة. يستطيع المستخدم الآن تسجيل الدخول بحساب Google نفسه.", "success");
+            }
+
             await Promise.all([loadUsers(), loadStats()]);
-            setTimeout(closeUserModal, 700);
+            setTimeout(closeUserModal, 600);
         } catch (error) {
             console.error(error);
-            message($("userFormMessage"), error.message || "تعذر إضافة المستخدم.", "error");
+            message($("userFormMessage"), error.message || "تعذر حفظ المستخدم.", "error");
         } finally {
             setBusy(button, false);
         }
@@ -1001,6 +1029,22 @@
         } catch (error) {
             console.error(error);
             message($("usersMessage"), error.message || "تعذر تحديث حالة المستخدم.", "error");
+        }
+    }
+
+    async function deleteManagedUserByEmail(email) {
+        if (!isOwner()) return;
+        const record = state.users.find((item) => item.email === email);
+        if (!record) return;
+        if (!confirm(`حذف صلاحية المحرر ${record.email}؟ لن يتم حذف حساب Google نفسه، لكنه لن يستطيع دخول لوحة الإدارة.`)) return;
+        try {
+            message($("usersMessage"), "جاري حذف صلاحية المحرر...", "info");
+            await SmartDragonFirestore.deleteManagedUser(record);
+            message($("usersMessage"), "تم حذف المحرر وصلاحية دخوله.", "success");
+            await Promise.all([loadUsers(), loadStats()]);
+        } catch (error) {
+            console.error(error);
+            message($("usersMessage"), error.message || "تعذر حذف المستخدم.", "error");
         }
     }
 
@@ -1077,6 +1121,13 @@
             if (reject) rejectRequest(reject.dataset.rejectRequest);
             const editCategory = event.target.closest("[data-edit-category]");
             if (editCategory) openCategoryModal(editCategory.dataset.editCategory);
+            const editUser = event.target.closest("[data-edit-user]");
+            if (editUser) {
+                const record = state.users.find((item) => item.email === editUser.dataset.editUser);
+                if (record) openUserModal(record);
+            }
+            const deleteUser = event.target.closest("[data-delete-user]");
+            if (deleteUser) deleteManagedUserByEmail(deleteUser.dataset.deleteUser);
             const removeField = event.target.closest("[data-remove-category-field]");
             if (removeField) removeField.closest(".admin-category-field-row")?.remove();
             const toggleUser = event.target.closest("[data-toggle-user]");
