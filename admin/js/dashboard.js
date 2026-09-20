@@ -11,7 +11,9 @@
         validationTimer: null,
         validationSequence: 0,
         currentConflicts: { duplicates: [], overlaps: [] },
-        overlapOverviewOpen: false
+        overlapOverviewOpen: false,
+        categories: [],
+        editingCategorySlug: null
     };
 
     const $ = (id) => document.getElementById(id);
@@ -68,35 +70,86 @@
         }) || null;
     }
 
-    function validateFitmentForm() {
-        const errors = [];
-        const bulbIds = ["fitLowBeam", "fitHighBeam", "fitFogLight"];
-        bulbIds.forEach((id) => {
-            const value = normalizeInputValue($(id).value);
-            if (value && !SmartDragonValidation.validateFitmentValue(value)) {
-                errors.push(`قيمة ${$(id).closest("label")?.firstChild?.textContent?.trim() || "اللمبات"} غير صالحة.`);
-            }
-        });
+    function activeCategories() {
+        return state.categories.filter((category) => category.active !== false);
+    }
 
-        ["fitWiperDriver", "fitWiperPassenger", "fitWiperRear"].forEach((id) => {
-            const raw = $(id).value.trim();
-            if (!raw) return;
-            const value = Number(raw);
-            if (!Number.isInteger(value) || value < 8 || value > 40) {
-                errors.push("مقاسات المساحات يجب أن تكون أرقامًا صحيحة بين 8 و40 إنش.");
-            }
-        });
+    function fieldInputId(categorySlug, fieldKey) {
+        return `fit_${categorySlug}_${fieldKey}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+    }
 
-        const screen = normalizeInputValue($("fitScreen").value);
-        if (screen && !SmartDragonValidation.validateNote(screen)) {
-            errors.push("قيمة الشاشة تحتوي على نص غير صالح.");
+    function categoryFieldDefinitions(category) {
+        return Array.isArray(category?.fieldsDefinition) ? category.fieldsDefinition : [];
+    }
+
+    function renderDynamicFitmentSections() {
+        const container = $("dynamicFitmentSections");
+        if (!container) return;
+
+        const categories = activeCategories();
+        if (!categories.length) {
+            container.innerHTML = '<div class="admin-empty-state compact"><strong>لا توجد أصناف فعالة</strong><span>أضف صنفًا من صفحة الأصناف أولًا.</span></div>';
+            return;
         }
 
-        const hasAnyFitment = bulbIds.some((id) => $(id).value.trim()) ||
-            ["fitWiperDriver", "fitWiperPassenger", "fitWiperRear"].some((id) => $(id).value.trim()) ||
-            screen !== "";
+        container.innerHTML = categories.map((category) => {
+            const fields = categoryFieldDefinitions(category);
+            const controls = fields.map((field) => {
+                const id = fieldInputId(category.slug, field.key);
+                const type = field.type === "number" ? "number" : "text";
+                const attrs = [];
+                if (field.type === "number") {
+                    if (field.min !== null && field.min !== undefined && field.min !== "" && Number.isFinite(Number(field.min))) attrs.push(`min="${escapeHtml(field.min)}"`);
+                    if (field.max !== null && field.max !== undefined && field.max !== "" && Number.isFinite(Number(field.max))) attrs.push(`max="${escapeHtml(field.max)}"`);
+                    attrs.push(`step="${escapeHtml(field.step || 1)}"`);
+                } else {
+                    attrs.push(`maxlength="${escapeHtml(field.maxLength || 300)}"`);
+                }
+                if (field.placeholder) attrs.push(`placeholder="${escapeHtml(field.placeholder)}"`);
+                return `<label>${escapeHtml(field.label || field.key)}${field.unit ? ` <small>(${escapeHtml(field.unit)})</small>` : ""}<input id="${id}" data-fit-category="${escapeHtml(category.slug)}" data-fit-field="${escapeHtml(field.key)}" data-fit-type="${escapeHtml(field.type || "text")}" ${attrs.join(" ")}></label>`;
+            }).join("");
+
+            return `<div class="admin-form-section dynamic-fitment-section" data-category-slug="${escapeHtml(category.slug)}"><div class="admin-section-heading"><h3>${escapeHtml(category.name)}</h3><span>${escapeHtml(category.slug)}</span></div><div class="admin-form-grid three">${controls || '<span class="admin-muted">هذا الصنف لا يحتوي حقولًا بعد.</span>'}</div></div>`;
+        }).join("");
+    }
+
+    function validateFitmentForm() {
+        const errors = [];
+        let hasAnyFitment = false;
+
+        activeCategories().forEach((category) => {
+            categoryFieldDefinitions(category).forEach((field) => {
+                const input = $(fieldInputId(category.slug, field.key));
+                if (!input) return;
+                const raw = normalizeInputValue(input.value);
+                if (!raw) return;
+                hasAnyFitment = true;
+
+                if (field.type === "number") {
+                    const number = Number(raw);
+                    const min = field.min === null || field.min === undefined || field.min === "" ? null : Number(field.min);
+                    const max = field.max === null || field.max === undefined || field.max === "" ? null : Number(field.max);
+                    if (!Number.isFinite(number) || (min !== null && number < min) || (max !== null && number > max)) {
+                        errors.push(`قيمة ${category.name} / ${field.label || field.key} خارج النطاق المسموح.`);
+                    }
+                    return;
+                }
+
+                if (field.type === "bulb") {
+                    if (!SmartDragonValidation.validateFitmentValue(raw)) {
+                        errors.push(`قيمة ${category.name} / ${field.label || field.key} غير صالحة.`);
+                    }
+                    return;
+                }
+
+                if (!SmartDragonValidation.validateNote(raw)) {
+                    errors.push(`قيمة ${category.name} / ${field.label || field.key} تحتوي على نص غير صالح.`);
+                }
+            });
+        });
+
         if (!hasAnyFitment) {
-            errors.push("أدخل بيانات توافق واحدة على الأقل: لمبة أو مساحة أو شاشة.");
+            errors.push("أدخل بيانات توافق واحدة على الأقل في أحد الأصناف الفعالة.");
         }
 
         return errors;
@@ -278,7 +331,8 @@
         const map = {
             dashboard: ["dashboardView", "لوحة التحكم", "إدارة بيانات توافق السيارات والمراجعات."],
             vehicles: ["vehiclesView", "السيارات", "إضافة وتعديل سجلات السيارات وبيانات التوافق."],
-            reviews: ["reviewsView", "طلبات المراجعة", "اعتماد أو رفض تعديلات المحررين."]
+            reviews: ["reviewsView", "طلبات المراجعة", "اعتماد أو رفض تعديلات المحررين."],
+            categories: ["categoriesView", "الأصناف", "إدارة فئات وحقول بيانات التوافق بشكل ديناميكي."]
         };
 
         const [id, title, subtitle] = map[view] || map.dashboard;
@@ -289,6 +343,7 @@
         if (view === "dashboard") loadStats();
         if (view === "vehicles") loadVehicles();
         if (view === "reviews") loadReviews();
+        if (view === "categories") loadCategories();
     }
 
     async function loadStats() {
@@ -426,35 +481,36 @@
         return { raw, type: "replaceable_bulb", code: raw, aliases: [], technology: null, dependsOnTrim: false, notApplicable: false, notes: null };
     }
 
-    function wiperValue(value) {
-        const number = Number(value);
-        if (!Number.isFinite(number) || number <= 0) return null;
-        return { value: number, unit: "inch", raw: String(number) };
+    function dynamicFieldValue(field, raw) {
+        const value = normalizeInputValue(raw);
+        if (!value) return null;
+        if (field.type === "bulb") return parseBulbValue(value);
+        if (field.type === "number") {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return null;
+            return { value: number, unit: normalizeInputValue(field.unit || "") || null, raw: String(number) };
+        }
+        return { raw: value, options: [], notes: value };
+    }
+
+    function buildDynamicFitments() {
+        const fitments = [];
+        activeCategories().forEach((category) => {
+            const fields = {};
+            categoryFieldDefinitions(category).forEach((field) => {
+                const input = $(fieldInputId(category.slug, field.key));
+                if (!input) return;
+                const parsed = dynamicFieldValue(field, input.value);
+                if (parsed) fields[field.key] = parsed;
+            });
+            if (Object.keys(fields).length) {
+                fitments.push({ categorySlug: category.slug, fields, source: "admin" });
+            }
+        });
+        return fitments;
     }
 
     function buildPayloadFromForm() {
-        const lightingFields = {};
-        const low = parseBulbValue($("fitLowBeam").value);
-        const high = parseBulbValue($("fitHighBeam").value);
-        const fog = parseBulbValue($("fitFogLight").value);
-        if (low) lightingFields.lowBeam = low;
-        if (high) lightingFields.highBeam = high;
-        if (fog) lightingFields.fogLight = fog;
-
-        const wiperFields = {};
-        const driver = wiperValue($("fitWiperDriver").value);
-        const passenger = wiperValue($("fitWiperPassenger").value);
-        const rear = wiperValue($("fitWiperRear").value);
-        if (driver) wiperFields.driver = driver;
-        if (passenger) wiperFields.passenger = passenger;
-        if (rear) wiperFields.rear = rear;
-
-        const screen = $("fitScreen").value.trim();
-        const fitments = [];
-        if (Object.keys(lightingFields).length) fitments.push({ categorySlug: "lighting", fields: lightingFields, source: "admin" });
-        if (Object.keys(wiperFields).length) fitments.push({ categorySlug: "wipers", fields: wiperFields, source: "admin" });
-        if (screen) fitments.push({ categorySlug: "screens", fields: { screen: { raw: screen, options: [], notes: screen } }, source: "admin" });
-
         return {
             vehicle: {
                 make: $("vehicleMake").value,
@@ -467,7 +523,7 @@
                 hasOverlap: $("vehicleHasOverlap").checked,
                 overlapReason: $("vehicleHasOverlap").checked ? $("vehicleOverlapReason").value : ""
             },
-            fitments
+            fitments: buildDynamicFitments()
         };
     }
 
@@ -475,15 +531,34 @@
         return record?.fitments?.find((f) => (f.categoryId || f.categorySlug) === slug) || null;
     }
 
-    function bulbText(field) {
+    function storedFieldText(field) {
         if (!field) return "";
         if (field.notApplicable) return "N/A";
+        if (field.value !== null && field.value !== undefined) return String(field.value);
         return field.raw || field.code || field.notes || "";
     }
 
+    function fillDynamicFitments(record) {
+        activeCategories().forEach((category) => {
+            const fitment = findFitment(record, category.slug);
+            categoryFieldDefinitions(category).forEach((field) => {
+                const input = $(fieldInputId(category.slug, field.key));
+                if (input) input.value = storedFieldText(fitment?.fields?.[field.key]);
+            });
+        });
+    }
+
+    async function ensureCategoriesLoaded() {
+        if (state.categories.length) return;
+        state.categories = await SmartDragonFirestore.getCategories();
+        renderDynamicFitmentSections();
+    }
+
     async function openVehicleModal(vehicleId = null) {
+        await ensureCategoriesLoaded();
         state.currentVehicle = null;
         $("vehicleForm").reset();
+        renderDynamicFitmentSections();
         state.currentConflicts = { duplicates: [], overlaps: [] };
         $("vehicleValidationSummary").hidden = true;
         $("vehicleOverlapReasonWrap").hidden = true;
@@ -517,19 +592,7 @@
             $("vehicleYearEnd").value = record.yearEnd || "";
             $("vehicleHasOverlap").checked = record.hasOverlap === true;
             $("vehicleOverlapReason").value = record.overlapReason || "";
-
-            const lighting = findFitment(record, "lighting")?.fields || {};
-            $("fitLowBeam").value = bulbText(lighting.lowBeam);
-            $("fitHighBeam").value = bulbText(lighting.highBeam);
-            $("fitFogLight").value = bulbText(lighting.fogLight);
-
-            const wipers = findFitment(record, "wipers")?.fields || {};
-            $("fitWiperDriver").value = wipers.driver?.value ?? "";
-            $("fitWiperPassenger").value = wipers.passenger?.value ?? "";
-            $("fitWiperRear").value = wipers.rear?.value ?? "";
-
-            const screens = findFitment(record, "screens")?.fields || {};
-            $("fitScreen").value = screens.screen?.raw || screens.screen?.notes || "";
+            fillDynamicFitments(record);
             $("deleteVehicleButton").hidden = !isOwner();
             scheduleVehicleValidation();
         } catch (error) {
@@ -705,6 +768,138 @@
         }
     }
 
+    function normalizeCategorySlug(value) {
+        return String(value || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, "-")
+            .replace(/[^a-z0-9_-]/g, "")
+            .replace(/-+/g, "-")
+            .slice(0, 80);
+    }
+
+    async function loadCategories() {
+        message($("categoriesMessage"), "");
+        try {
+            state.categories = await SmartDragonFirestore.getCategories();
+            renderCategories();
+            renderDynamicFitmentSections();
+            $("addCategoryButton").hidden = !isOwner();
+        } catch (error) {
+            console.error(error);
+            message($("categoriesMessage"), error.message || "تعذر تحميل الأصناف.", "error");
+        }
+    }
+
+    function renderCategories() {
+        const body = $("categoriesTableBody");
+        if (!body) return;
+        if (!state.categories.length) {
+            body.innerHTML = '<tr><td colspan="5"><div class="admin-empty-state"><strong>لا توجد أصناف</strong><span>سيتم إنشاء الأصناف الأساسية تلقائيًا للمالك، أو يمكنك إضافة صنف جديد.</span></div></td></tr>';
+            return;
+        }
+        body.innerHTML = state.categories.map((category) => `
+            <tr>
+                <td>${escapeHtml(category.name)}</td>
+                <td><code>${escapeHtml(category.slug)}</code></td>
+                <td>${categoryFieldDefinitions(category).length}</td>
+                <td><span class="admin-badge ${category.active === false ? "neutral" : "approved"}">${category.active === false ? "غير فعال" : "فعال"}</span></td>
+                <td>${isOwner() ? `<button class="admin-link-button" type="button" data-edit-category="${escapeHtml(category.slug)}">تعديل</button>` : "عرض فقط"}</td>
+            </tr>
+        `).join("");
+    }
+
+    function categoryFieldRow(field = {}) {
+        const type = field.type || "text";
+        return `<div class="admin-category-field-row">
+            <input data-category-field="key" value="${escapeHtml(field.key || "")}" placeholder="key مثل oilGrade" maxlength="80">
+            <input data-category-field="label" value="${escapeHtml(field.label || "")}" placeholder="اسم الحقل بالعربي" maxlength="120">
+            <select data-category-field="type">
+                <option value="text" ${type === "text" ? "selected" : ""}>نص</option>
+                <option value="number" ${type === "number" ? "selected" : ""}>رقم</option>
+                <option value="bulb" ${type === "bulb" ? "selected" : ""}>كود لمبة</option>
+            </select>
+            <input data-category-field="unit" value="${escapeHtml(field.unit || "")}" placeholder="الوحدة (اختياري)" maxlength="30">
+            <input data-category-field="placeholder" value="${escapeHtml(field.placeholder || "")}" placeholder="مثال / تلميح" maxlength="150">
+            <button class="admin-icon-button danger" type="button" data-remove-category-field aria-label="حذف الحقل">×</button>
+        </div>`;
+    }
+
+    function addCategoryField(field = {}) {
+        $("categoryFieldsBuilder").insertAdjacentHTML("beforeend", categoryFieldRow(field));
+    }
+
+    function openCategoryModal(slug = null) {
+        if (!isOwner()) return;
+        state.editingCategorySlug = slug;
+        $("categoryForm").reset();
+        $("categoryFieldsBuilder").innerHTML = "";
+        message($("categoryFormMessage"), "");
+        const category = slug ? state.categories.find((item) => item.slug === slug || item.id === slug) : null;
+        $("categoryModalTitle").textContent = category ? "تعديل الصنف" : "إضافة صنف";
+        $("categoryName").value = category?.name || "";
+        $("categorySlug").value = category?.slug || "";
+        $("categorySlug").disabled = Boolean(category);
+        $("categoryActive").checked = category ? category.active !== false : true;
+        (categoryFieldDefinitions(category).length ? categoryFieldDefinitions(category) : [{}]).forEach(addCategoryField);
+        $("categoryModal").hidden = false;
+    }
+
+    function closeCategoryModal() {
+        $("categoryModal").hidden = true;
+        state.editingCategorySlug = null;
+    }
+
+    function collectCategoryFields() {
+        const rows = [...document.querySelectorAll(".admin-category-field-row")];
+        const seen = new Set();
+        return rows.map((row) => {
+            const value = (name) => normalizeInputValue(row.querySelector(`[data-category-field="${name}"]`)?.value || "");
+            const key = value("key").replace(/\s+/g, "_").replace(/[^A-Za-z0-9_]/g, "").slice(0, 80);
+            const label = value("label");
+            const type = value("type") || "text";
+            if (!key && !label) return null;
+            if (!key || !label) throw new Error("كل حقل يحتاج key واسم ظاهر.");
+            if (seen.has(key)) throw new Error(`الحقل ${key} مكرر داخل الصنف.`);
+            seen.add(key);
+            return {
+                key,
+                label,
+                type: ["text", "number", "bulb"].includes(type) ? type : "text",
+                unit: value("unit") || null,
+                placeholder: value("placeholder") || null
+            };
+        }).filter(Boolean);
+    }
+
+    async function submitCategory(event) {
+        event.preventDefault();
+        if (!isOwner()) return;
+        const button = $("saveCategoryButton");
+        try {
+            setBusy(button, true, "جاري الحفظ...");
+            const name = normalizeInputValue($("categoryName").value);
+            const slug = state.editingCategorySlug || normalizeCategorySlug($("categorySlug").value);
+            if (!name || !slug) throw new Error("اسم الصنف وslug مطلوبان.");
+            const fieldsDefinition = collectCategoryFields();
+            if (!fieldsDefinition.length) throw new Error("أضف حقلًا واحدًا على الأقل للصنف.");
+            await SmartDragonFirestore.createCategory({
+                name,
+                slug,
+                active: $("categoryActive").checked,
+                fieldsDefinition
+            });
+            message($("categoryFormMessage"), "تم حفظ الصنف.", "success");
+            await Promise.all([loadCategories(), loadStats()]);
+            setTimeout(closeCategoryModal, 500);
+        } catch (error) {
+            console.error(error);
+            message($("categoryFormMessage"), error.message || "تعذر حفظ الصنف.", "error");
+        } finally {
+            setBusy(button, false);
+        }
+    }
+
     function bindEvents() {
         $("googleSignInButton").addEventListener("click", async () => {
             const button = $("googleSignInButton");
@@ -741,17 +936,20 @@
         $("vehicleForm").addEventListener("submit", submitVehicle);
         [
             "vehicleMake", "vehicleModel", "vehicleArabicMake", "vehicleArabicKeywords",
-            "vehicleYearStart", "vehicleYearEnd", "vehicleHasOverlap", "vehicleOverlapReason",
-            "fitLowBeam", "fitHighBeam", "fitFogLight",
-            "fitWiperDriver", "fitWiperPassenger", "fitWiperRear", "fitScreen"
+            "vehicleYearStart", "vehicleYearEnd", "vehicleHasOverlap", "vehicleOverlapReason"
         ].forEach((id) => {
             $(id).addEventListener(id === "vehicleHasOverlap" ? "change" : "input", scheduleVehicleValidation);
         });
+        $("dynamicFitmentSections").addEventListener("input", scheduleVehicleValidation);
         $("deleteVehicleButton").addEventListener("click", deleteCurrentVehicle);
         $("closeVehicleModalButton").addEventListener("click", closeVehicleModal);
         document.querySelectorAll("[data-close-modal='true']").forEach((el) => el.addEventListener("click", closeVehicleModal));
         $("importLegacyButton").addEventListener("click", importLegacy);
         $("bulkApproveButton").addEventListener("click", bulkApprove);
+        $("addCategoryButton").addEventListener("click", () => openCategoryModal());
+        $("addCategoryFieldButton").addEventListener("click", () => addCategoryField());
+        $("categoryForm").addEventListener("submit", submitCategory);
+        $("closeCategoryModalButton").addEventListener("click", closeCategoryModal);
 
         $("selectAllReviews").addEventListener("change", (event) => {
             document.querySelectorAll(".review-checkbox").forEach((box) => { box.checked = event.target.checked; });
@@ -769,6 +967,11 @@
             if (approve) approveRequest(approve.dataset.approveRequest);
             const reject = event.target.closest("[data-reject-request]");
             if (reject) rejectRequest(reject.dataset.rejectRequest);
+            const editCategory = event.target.closest("[data-edit-category]");
+            if (editCategory) openCategoryModal(editCategory.dataset.editCategory);
+            const removeField = event.target.closest("[data-remove-category-field]");
+            if (removeField) removeField.closest(".admin-category-field-row")?.remove();
+            if (event.target.matches("[data-close-category-modal='true']")) closeCategoryModal();
         });
     }
 
@@ -781,6 +984,15 @@
             return;
         }
         showApp();
+        if (isOwner()) {
+            try {
+                await SmartDragonFirestore.ensureDefaultCategories();
+            } catch (error) {
+                console.warn("[Smart Dragon Admin] Could not seed default categories", error);
+            }
+        }
+        state.categories = await SmartDragonFirestore.getCategories();
+        renderDynamicFitmentSections();
         await loadStats();
     }
 

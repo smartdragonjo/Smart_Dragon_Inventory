@@ -33,7 +33,7 @@
             <button class="admin-nav-item active" type="button" data-view="dashboard">لوحة التحكم</button>
             <button class="admin-nav-item" type="button" data-view="vehicles">السيارات</button>
             <button class="admin-nav-item" type="button" data-view="reviews">طلبات المراجعة</button>
-            <button class="admin-nav-item" type="button" disabled>الأصناف</button>
+            <button class="admin-nav-item" type="button" data-view="categories">الأصناف</button>
             <button class="admin-nav-item owner-only" type="button" disabled>المستخدمون</button>
             <button class="admin-nav-item owner-only" type="button" disabled>سجل التعديلات</button>
             <button class="admin-nav-item owner-only" type="button" disabled>النسخ الاحتياطية</button>
@@ -125,6 +125,25 @@
             </section>
         </section>
 
+
+        <section id="categoriesView" class="admin-view">
+            <section class="admin-panel">
+                <div class="admin-panel-header">
+                    <div>
+                        <h2>الأصناف الديناميكية</h2>
+                        <p>كل صنف يحدد الحقول التي تظهر تلقائيًا في نموذج السيارة وفي نتائج البحث العامة.</p>
+                    </div>
+                    <button id="addCategoryButton" class="admin-primary-button owner-only" type="button">إضافة صنف</button>
+                </div>
+                <div id="categoriesMessage" class="admin-message" hidden></div>
+                <div class="admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead><tr><th>الصنف</th><th>Slug</th><th>عدد الحقول</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+                        <tbody id="categoriesTableBody"><tr><td colspan="5"><div class="admin-empty-state"><strong>جاري التحميل...</strong></div></td></tr></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
         <section id="reviewsView" class="admin-view">
             <section class="admin-panel">
                 <div class="admin-panel-header">
@@ -175,27 +194,8 @@
 
                 <div id="vehicleValidationSummary" class="admin-validation-summary" hidden></div>
 
-                <div class="admin-form-section">
-                    <h3>اللمبات</h3>
-                    <div class="admin-form-grid three">
-                        <label>الواطي<input id="fitLowBeam" placeholder="مثال H11 أو LED/OEM"></label>
-                        <label>العالي<input id="fitHighBeam" placeholder="مثال 9005"></label>
-                        <label>الضباب<input id="fitFogLight" placeholder="مثال H11 أو N/A"></label>
-                    </div>
-                </div>
-
-                <div class="admin-form-section">
-                    <h3>المساحات (إنش)</h3>
-                    <div class="admin-form-grid three">
-                        <label>السائق<input id="fitWiperDriver" type="number" min="8" max="40" step="1"></label>
-                        <label>الراكب<input id="fitWiperPassenger" type="number" min="8" max="40" step="1"></label>
-                        <label>الخلفية<input id="fitWiperRear" type="number" min="8" max="40" step="1"></label>
-                    </div>
-                </div>
-
-                <div class="admin-form-section">
-                    <h3>الشاشة</h3>
-                    <label>ملاحظات / المقاس<input id="fitScreen" maxlength="300" placeholder="مثال Double DIN / 9-inch frame"></label>
+                <div id="dynamicFitmentSections">
+                    <div class="admin-empty-state compact"><strong>جاري تحميل الأصناف...</strong></div>
                 </div>
 
                 <div id="vehicleFormMessage" class="admin-message" hidden></div>
@@ -203,6 +203,34 @@
                     <button id="saveVehicleButton" class="admin-primary-button" type="submit">حفظ</button>
                     <button id="deleteVehicleButton" class="admin-danger-button owner-only" type="button" hidden>حذف السجل</button>
                     <button class="admin-secondary-button" type="button" data-close-modal="true">إلغاء</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <div id="categoryModal" class="admin-modal" hidden>
+        <div class="admin-modal-backdrop" data-close-category-modal="true"></div>
+        <section class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
+            <div class="admin-modal-header">
+                <div><h2 id="categoryModalTitle">إضافة صنف</h2><p>عرّف الصنف وحقوله. ستظهر الحقول تلقائيًا في نموذج السيارة.</p></div>
+                <button id="closeCategoryModalButton" class="admin-icon-button" type="button" aria-label="إغلاق">×</button>
+            </div>
+            <form id="categoryForm" class="admin-form">
+                <div class="admin-form-grid">
+                    <label>اسم الصنف<input id="categoryName" required maxlength="120" placeholder="مثال: الزيوت"></label>
+                    <label>Slug<input id="categorySlug" required maxlength="80" dir="ltr" placeholder="مثال: oils"></label>
+                </div>
+                <label class="admin-checkbox-line"><input id="categoryActive" type="checkbox" checked> الصنف فعال ويظهر في نماذج الإدخال والواجهة العامة</label>
+
+                <div class="admin-category-fields-head">
+                    <div><strong>حقول الصنف</strong><span>استخدم key إنجليزي ثابت لكل حقل.</span></div>
+                    <button id="addCategoryFieldButton" class="admin-secondary-button" type="button">إضافة حقل</button>
+                </div>
+                <div id="categoryFieldsBuilder" class="admin-category-fields-builder"></div>
+                <div id="categoryFormMessage" class="admin-message" hidden></div>
+                <div class="admin-form-actions">
+                    <button id="saveCategoryButton" class="admin-primary-button" type="submit">حفظ الصنف</button>
+                    <button class="admin-secondary-button" type="button" data-close-category-modal="true">إلغاء</button>
                 </div>
             </form>
         </section>

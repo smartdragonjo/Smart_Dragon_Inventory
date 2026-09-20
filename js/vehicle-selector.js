@@ -349,33 +349,97 @@ const VehicleDataProvider =
     }
 
 
+    function fallbackCategoryDefinitions() {
+        return [
+            {
+                slug: "lighting",
+                name: "اللمبات",
+                active: true,
+                fieldsDefinition: [
+                    { key: "lowBeam", label: "الواطي", type: "bulb" },
+                    { key: "highBeam", label: "العالي", type: "bulb" },
+                    { key: "fogLight", label: "الضباب", type: "bulb" }
+                ]
+            },
+            {
+                slug: "wipers",
+                name: "المساحات",
+                active: true,
+                fieldsDefinition: [
+                    { key: "driver", label: "جهة السائق", type: "number", unit: "inch" },
+                    { key: "passenger", label: "جهة الراكب", type: "number", unit: "inch" },
+                    { key: "rear", label: "الخلفية", type: "number", unit: "inch" }
+                ]
+            },
+            {
+                slug: "screens",
+                name: "الشاشات",
+                active: true,
+                fieldsDefinition: [
+                    { key: "screen", label: "المقاس / النوع", type: "text" }
+                ]
+            }
+        ];
+    }
+
+    function genericFieldValue(field, definition) {
+        if (definition?.type === "bulb") return bulbValue(field);
+
+        if (definition?.type === "number") {
+            if (!field) {
+                return { value: "غير متوفر", tone: "muted", dir: "rtl" };
+            }
+            if (field.value !== null && field.value !== undefined) {
+                const unit = field.unit || definition.unit || "";
+                return {
+                    value: `${field.value}${unit ? ` ${unit}` : ""}`,
+                    tone: "normal",
+                    dir: "ltr"
+                };
+            }
+            return {
+                value: field.raw || "غير متوفر",
+                tone: field.raw ? "normal" : "muted",
+                dir: "auto"
+            };
+        }
+
+        if (!field) {
+            return { value: "غير متوفر", tone: "muted", dir: "rtl" };
+        }
+
+        const raw = field.raw || field.notes || field.code || "غير متوفر";
+        return {
+            value: raw,
+            tone: raw === "غير متوفر" ? "muted" : "normal",
+            dir: /[\u0600-\u06FF]/.test(raw) ? "auto" : "ltr"
+        };
+    }
+
     function buildVehicleResult(
         record,
-        selectedYear
+        selectedYear,
+        categoryDefinitions = []
     ) {
-        const lighting =
-            getFitment(
-                record,
-                "lighting"
-            );
+        const hasOverlap = Boolean(record?.hasOverlap || record?.source?.hasOverlap);
+        const definitions = (Array.isArray(categoryDefinitions) && categoryDefinitions.length
+            ? categoryDefinitions
+            : fallbackCategoryDefinitions())
+            .filter((category) => category && category.active !== false);
 
-        const wipers =
-            getFitment(
-                record,
-                "wipers"
-            );
-
-        const screens =
-            getFitment(
-                record,
-                "screens"
-            );
-
-        const hasOverlap =
-            Boolean(
-                record?.hasOverlap ||
-                record?.source?.hasOverlap
-            );
+        const categories = definitions.map((category) => {
+            const slug = category.slug || category.id;
+            const fitment = getFitment(record, slug);
+            const fields = Array.isArray(category.fieldsDefinition) ? category.fieldsDefinition : [];
+            return {
+                name: category.name || slug,
+                slug,
+                items: fields.map((definition) => ({
+                    label: definition.label || definition.key,
+                    ...genericFieldValue(fitment?.fields?.[definition.key], definition)
+                }))
+            };
+        }).filter((category) => category.items.length > 0);
 
         return {
             vehicle: {
@@ -395,62 +459,9 @@ const VehicleDataProvider =
                         : null
             },
 
-            categories: [
-                {
-                    name: "اللمبات",
-                    items: [
-                        {
-                            label: "الواطي",
-                            ...bulbValue(
-                                lighting?.fields?.lowBeam
-                            )
-                        },
-                        {
-                            label: "العالي",
-                            ...bulbValue(
-                                lighting?.fields?.highBeam
-                            )
-                        },
-                        {
-                            label: "الضباب",
-                            ...bulbValue(
-                                lighting?.fields?.fogLight
-                            )
-                        }
-                    ]
-                },
-                {
-                    name: "المساحات",
-                    items: [
-                        {
-                            label: "جهة السائق",
-                            ...wiperValue(
-                                wipers?.fields?.driver
-                            )
-                        },
-                        {
-                            label: "جهة الراكب",
-                            ...wiperValue(
-                                wipers?.fields?.passenger
-                            )
-                        }
-                    ]
-                },
-                {
-                    name: "الشاشات",
-                    items: [
-                        {
-                            label: "المقاس / النوع",
-                            ...screenValue(
-                                screens?.fields?.screen
-                            )
-                        }
-                    ]
-                }
-            ]
+            categories
         };
     }
-
 
     return Object.freeze({
 
@@ -497,12 +508,14 @@ const VehicleDataProvider =
                 );
             }
 
-            const record =
-                await api().getVehicleFitment(
+            const [record, categoryDefinitions] = await Promise.all([
+                api().getVehicleFitment(
                     make,
                     model,
                     year
-                );
+                ),
+                api().getPublicCategories().catch(() => [])
+            ]);
 
             if (!record) {
                 return null;
@@ -510,7 +523,8 @@ const VehicleDataProvider =
 
             return buildVehicleResult(
                 record,
-                year
+                year,
+                categoryDefinitions
             );
         },
 

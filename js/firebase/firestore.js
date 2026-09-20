@@ -500,24 +500,113 @@
     }
 
     async function getCategories() {
-        const snapshot = await db().collection(col("categories")).orderBy("name").get();
-        return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        authContext();
+        const snapshot = await db().collection(col("categories")).get();
+        return snapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ar"));
+    }
+
+    async function getPublicCategories() {
+        const snapshot = await db().collection(col("categories"))
+            .where("active", "==", true)
+            .get();
+        return snapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ar"));
+    }
+
+    function normalizeCategoryFields(fieldsDefinition) {
+        const seen = new Set();
+        return (Array.isArray(fieldsDefinition) ? fieldsDefinition : [])
+            .slice(0, 30)
+            .map((field) => {
+                if (!field || typeof field !== "object") return null;
+                const key = cleanText(field.key, 80).replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+                const label = cleanText(field.label, 120);
+                const type = ["text", "number", "bulb"].includes(field.type) ? field.type : "text";
+                if (!key || !label || seen.has(key)) return null;
+                seen.add(key);
+                return {
+                    key,
+                    label,
+                    type,
+                    unit: cleanText(field.unit, 30) || null,
+                    placeholder: cleanText(field.placeholder, 150) || null,
+                    min: Number.isFinite(Number(field.min)) ? Number(field.min) : null,
+                    max: Number.isFinite(Number(field.max)) ? Number(field.max) : null,
+                    step: Number.isFinite(Number(field.step)) ? Number(field.step) : null,
+                    maxLength: Number.isFinite(Number(field.maxLength)) ? Math.max(1, Math.min(1000, Number(field.maxLength))) : 300
+                };
+            })
+            .filter(Boolean);
     }
 
     async function createCategory(category) {
-        authContext();
+        const { user } = authContext();
         if (!isOwner()) throw new Error("إدارة الأصناف متاحة للمالك فقط.");
         const slug = cleanText(category?.slug, 80).toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
         const name = cleanText(category?.name, 120);
+        const fieldsDefinition = normalizeCategoryFields(category?.fieldsDefinition);
         if (!slug || !name) throw new Error("اسم وslug الصنف مطلوبان.");
-        await db().collection(col("categories")).doc(slug).set({
+        if (!fieldsDefinition.length) throw new Error("الصنف يحتاج حقلًا واحدًا على الأقل.");
+        const ref = db().collection(col("categories")).doc(slug);
+        const existing = await ref.get();
+        await ref.set({
             name,
             slug,
             active: category?.active !== false,
-            fieldsDefinition: Array.isArray(category?.fieldsDefinition) ? category.fieldsDefinition : [],
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            fieldsDefinition,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: user.uid,
+            ...(existing.exists ? {} : {
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                createdBy: user.uid
+            })
         }, { merge: true });
+        await writeAudit(existing.exists ? "category_updated" : "category_created", slug, { name, active: category?.active !== false });
         return slug;
+    }
+
+    async function ensureDefaultCategories() {
+        authContext();
+        if (!isOwner()) return;
+        const defaults = [
+            {
+                slug: "lighting",
+                name: "اللمبات",
+                active: true,
+                fieldsDefinition: [
+                    { key: "lowBeam", label: "الواطي", type: "bulb", placeholder: "مثال H11 أو LED/OEM" },
+                    { key: "highBeam", label: "العالي", type: "bulb", placeholder: "مثال 9005" },
+                    { key: "fogLight", label: "الضباب", type: "bulb", placeholder: "مثال H11 أو N/A" }
+                ]
+            },
+            {
+                slug: "wipers",
+                name: "المساحات",
+                active: true,
+                fieldsDefinition: [
+                    { key: "driver", label: "السائق", type: "number", unit: "inch", min: 8, max: 40, step: 1 },
+                    { key: "passenger", label: "الراكب", type: "number", unit: "inch", min: 8, max: 40, step: 1 },
+                    { key: "rear", label: "الخلفية", type: "number", unit: "inch", min: 8, max: 40, step: 1 }
+                ]
+            },
+            {
+                slug: "screens",
+                name: "الشاشات",
+                active: true,
+                fieldsDefinition: [
+                    { key: "screen", label: "المقاس / النوع", type: "text", placeholder: "مثال Double DIN / 9-inch frame", maxLength: 300 }
+                ]
+            }
+        ];
+
+        for (const category of defaults) {
+            const ref = db().collection(col("categories")).doc(category.slug);
+            const snap = await ref.get();
+            if (!snap.exists) await createCategory(category);
+        }
     }
 
     async function listUsers() {
@@ -647,7 +736,9 @@
         rejectChangeRequest,
         bulkApproveChanges,
         getCategories,
+        getPublicCategories,
         createCategory,
+        ensureDefaultCategories,
         listUsers,
         getDashboardStats,
         importLegacyVehicles
