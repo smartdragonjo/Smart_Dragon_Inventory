@@ -12,19 +12,60 @@
         return window.SmartDragonFirebaseConfig;
     }
 
-    function assertFirestoreReady() {
-        if (!cfg()?.enabled || !cfg()?.projectConfigured || !window.firebase) {
+    const FIREBASE_APP_NAME = "smart-dragon-inventory";
+
+    function firebaseSdk() {
+        const sdk = window.firebase;
+
+        if (
+            !cfg()?.enabled ||
+            !cfg()?.projectConfigured ||
+            !sdk ||
+            typeof sdk.initializeApp !== "function" ||
+            typeof sdk.app !== "function"
+        ) {
             throw new Error("Firestore is not configured.");
         }
 
-        if (!firebase.apps.length) {
-            firebase.initializeApp(cfg().config);
+        return sdk;
+    }
+
+    function inventoryFirebaseApp() {
+        const sdk = firebaseSdk();
+
+        /*
+         * The customer portal launcher also uses Firebase. If another compat
+         * bundle replaces window.firebase, relying on the [DEFAULT] app can
+         * leave firebase.apps and firebase.firestore() backed by different
+         * SDK instances. A dedicated named app is recreated in whichever
+         * namespace is currently active, so the inventory search remains
+         * isolated from the launcher.
+         */
+        try {
+            return sdk.app(FIREBASE_APP_NAME);
+        } catch (_) {
+            return sdk.initializeApp(cfg().config, FIREBASE_APP_NAME);
         }
     }
 
+    function assertFirestoreReady() {
+        const sdk = firebaseSdk();
+
+        if (typeof sdk.firestore !== "function") {
+            throw new Error("Firestore SDK is not loaded.");
+        }
+
+        const app = inventoryFirebaseApp();
+
+        if (typeof app.firestore !== "function") {
+            throw new Error("Firestore SDK is not attached to the Firebase app.");
+        }
+
+        return app;
+    }
+
     function db() {
-        assertFirestoreReady();
-        return firebase.firestore();
+        return assertFirestoreReady().firestore();
     }
 
     function col(name) {

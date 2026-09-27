@@ -658,6 +658,11 @@ async function handleMakeChange() {
             "[Smart Dragon] Failed to load vehicle models.",
             error
         );
+
+        resetSelect(
+            elements.model,
+            "تعذر تحميل الموديلات — حدّث الصفحة"
+        );
     }
 }
 

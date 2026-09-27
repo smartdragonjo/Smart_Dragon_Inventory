@@ -1314,8 +1314,19 @@
         window.addEventListener("storage", renderHealth);
         renderHealth();
         $("checkSearchHealthButton").addEventListener("click", async () => {
-            await SmartDragonFirestore.checkSearchHealth();
-            renderHealth();
+            const button = $("checkSearchHealthButton");
+            try {
+                setBusy(button, true, "جاري الفحص...");
+                message($("dashboardMessage"), "جاري فحص اتصال البحث وملخص الشركات...", "info");
+                const warnings = await SmartDragonFirestore.checkSearchHealth();
+                renderHealth();
+                message($("dashboardMessage"), warnings.length
+                    ? "اكتمل الفحص مع وجود مشكلات. راجع التنبيه أعلى الصفحة."
+                    : "نجح الفحص: استعلامات البحث وملخص الشركات متاحة لحسابك. جرّب البحث من الصفحة العامة أيضًا.",
+                    warnings.length ? "error" : "success");
+            } catch (error) {
+                message($("dashboardMessage"), error.message || "تعذر إكمال الفحص.", "error");
+            } finally { setBusy(button, false); }
         });
         $("rebuildMakesButton").addEventListener("click", async () => {
             const button = $("rebuildMakesButton");
