@@ -1,0 +1,8 @@
+{
+  "sourceFile": "exports\\migration_preview.csv",
+  "readyRecords": 107,
+  "outputJson": "exports\\import_ready.json",
+  "outputCsv": "exports\\import_ready.csv",
+  "firebaseUploadPerformed": false,
+  "note": "Migration candidates only. No Firebase upload is performed."
+}

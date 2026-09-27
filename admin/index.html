@@ -59,6 +59,7 @@
             </div>
         </header>
 
+        <div id="firestoreHealthWarning" class="admin-validation-summary warning" role="alert" style="white-space: pre-wrap" hidden></div>
         <section id="dashboardView" class="admin-view active">
             <section class="admin-stats">
                 <article class="admin-stat-card"><span>السيارات</span><strong id="statVehicles">—</strong><small>السجلات في Firestore</small></article>
@@ -71,11 +72,13 @@
                 <div class="admin-panel-header">
                     <div>
                         <h2>بدء العمل</h2>
-                        <p>يمكن للمالك استيراد بيانات <code>data/vehicles.json</code> الحالية إلى Firestore مرة واحدة. العملية آمنة لإعادة التشغيل لأن معرفات السجلات القديمة ثابتة.</p>
+                        <p>استيراد السجلات الجاهزة من <code>exports/import_ready.json</code>. إعادة الاستيراد تحدّث السجلات القديمة بنفس المعرفات؛ وقد تستبدل تعديلات أُجريت عليها لاحقًا.</p>
                     </div>
                     <button id="importLegacyButton" class="admin-primary-button owner-only" type="button">استيراد البيانات الحالية</button>
                 </div>
                 <div id="dashboardMessage" class="admin-message" hidden></div>
+                <button id="checkSearchHealthButton" class="admin-secondary-button" type="button">فحص فهارس البحث</button>
+                <button id="rebuildMakesButton" class="admin-secondary-button owner-only" type="button">إعادة بناء ملخص الشركات</button>
             </section>
 
             <section class="admin-security-note">

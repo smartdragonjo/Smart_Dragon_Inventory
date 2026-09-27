@@ -108,6 +108,11 @@ service cloud.firestore {
       allow read, create, update, delete: if isOwner();
     }
 
+    match /meta/makes {
+      allow read: if true;
+      allow create, update, delete: if isOwner();
+    }
+
     match /cars/{carId} {
       allow read: if true;
       allow write: if signedIn()

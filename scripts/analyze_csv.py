@@ -34,11 +34,12 @@ EXPECTED_COLUMNS = [
 
 UNKNOWN_VALUES = {
     "",
-    "n/a",
-    "na",
     "unknown",
     "لا توجد معلومات",
 }
+
+# N/A describes an absent part, not missing fitment information.
+NOT_APPLICABLE_VALUES = {"n/a", "na"}
 
 
 def normalize_space(value: str) -> str:
@@ -51,6 +52,10 @@ def normalized_key(value: str) -> str:
 
 def is_unknown(value: str) -> bool:
     return normalized_key(value) in UNKNOWN_VALUES
+
+
+def is_not_applicable(value: str) -> bool:
+    return normalized_key(value) in NOT_APPLICABLE_VALUES
 
 
 def parse_year(value: str) -> int | None:

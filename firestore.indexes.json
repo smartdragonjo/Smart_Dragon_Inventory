@@ -1,0 +1,30 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "vehicles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "make", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vehicles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "make", "order": "ASCENDING" },
+        { "fieldPath": "model", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vehicle_fitments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -126,11 +126,93 @@
         return { id: snapshot.id, ...snapshot.data() };
     }
 
-    const PUBLIC_CACHE_PREFIX = "smartDragonVehicleSearch:v10:";
+    const PUBLIC_CACHE_PREFIX = "smartDragonVehicleSearch:v11:";
     const PUBLIC_CACHE_TTL_MS = 10 * 60 * 1000;
     const modelCache = new Map();
     const vehicleGroupCache = new Map();
     let publicCategoriesCache = null;
+
+    const HEALTH_KEY = "smartDragonFirestoreHealth:v1";
+    const healthWarnings = new Map();
+
+    function reportHealth(key, message) {
+        if (message) healthWarnings.set(key, message);
+        else healthWarnings.delete(key);
+        try { localStorage.setItem(HEALTH_KEY, JSON.stringify([...healthWarnings.values()])); } catch (_) {}
+        window.dispatchEvent(new CustomEvent("smartdragon:firestore-health"));
+    }
+
+    function getHealthWarnings() {
+        try { return JSON.parse(localStorage.getItem(HEALTH_KEY) || "[]"); }
+        catch (_) { return [...healthWarnings.values()]; }
+    }
+
+    function isIndexError(error) {
+        return String(error?.code).endsWith("failed-precondition") && /index/i.test(error?.message || "");
+    }
+
+    function makesRef() { return db().collection("meta").doc("makes"); }
+
+    async function rebuildMakesSummary() {
+        authContext();
+        if (!isOwner()) throw new Error("تحديث ملخص الشركات متاح للمالك فقط.");
+        const ref = makesRef();
+        // A revision protects the rebuild from concurrent admin writes.
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            const before = await ref.get({ source: "server" });
+            const revision = before.data()?.revision || 0;
+            const snapshot = await db().collection(col("vehicles"))
+                .where("status", "==", "approved").get({ source: "server" });
+            const makes = [...new Set(snapshot.docs.map((doc) => cleanText(doc.data().make, 100)).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b));
+            const saved = await db().runTransaction(async (transaction) => {
+                const current = await transaction.get(ref);
+                if ((current.data()?.revision || 0) !== revision) return false;
+                transaction.set(ref, {
+                    makes, revision, dirty: false,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                return true;
+            });
+            if (saved) {
+                clearPublicVehicleCache();
+                reportHealth("summary", null);
+                return makes;
+            }
+        }
+        throw new Error("تعذر تحديث ملخص الشركات بسبب تعديلات متزامنة. أعد بناء الملخص من لوحة التحكم.");
+    }
+
+    async function commitVehicleBatch(batch) {
+        batch.set(makesRef(), {
+            revision: firebase.firestore.FieldValue.increment(1), dirty: true
+        }, { merge: true });
+        await batch.commit();
+        clearPublicVehicleCache();
+        try { await rebuildMakesSummary(); }
+        catch (error) {
+            reportHealth("summary", "تم حفظ السيارات، لكن ملخص الشركات يحتاج إعادة بناء: " + error.message);
+            throw new Error("تم حفظ دفعة السيارات، لكن تحديث ملخص الشركات فشل. أعد بناء الملخص ثم أعد الاستيراد عند الحاجة. " + error.message);
+        }
+    }
+
+    async function checkSearchHealth() {
+        authContext();
+        const checks = [
+            ["make-index", db().collection(col("vehicles")).where("status", "==", "approved").where("make", "==", "Toyota")],
+            ["model-index", db().collection(col("vehicles")).where("status", "==", "approved").where("make", "==", "Toyota").where("model", "==", "Corolla")]
+        ];
+        await Promise.all(checks.map(async ([key, query]) => {
+            try { await query.limit(1).get({ source: "server" }); reportHealth(key, null); }
+            catch (error) { reportHealth(key, `${key}: ${error.message}`); }
+        }));
+        try {
+            const snapshot = await makesRef().get({ source: "server" });
+            reportHealth("summary", !snapshot.exists || snapshot.data().dirty || !Array.isArray(snapshot.data().makes)
+                ? "ملخص الشركات غير جاهز. استخدم إعادة بناء ملخص الشركات." : null);
+        } catch (error) { reportHealth("summary", "تعذر قراءة ملخص الشركات: " + error.message); }
+        return getHealthWarnings();
+    }
 
     function publicCacheKey(name) {
         return `${PUBLIC_CACHE_PREFIX}${name}`;
@@ -201,11 +283,12 @@
         const cached = readSessionCache("makes");
         if (cached) return cached;
 
-        // Firestore does not provide DISTINCT queries in the browser SDK, so the
-        // make list still needs one approved-vehicles read on a cold session.
-        // The result is cached for the session; model/year lookups below are progressive.
-        const vehicles = await loadApprovedVehicles();
-        const makes = [...new Set(vehicles.map((v) => cleanText(v.make)).filter(Boolean))]
+        const snapshot = await makesRef().get();
+        if (!snapshot.exists || snapshot.data().dirty || !Array.isArray(snapshot.data().makes)) {
+            reportHealth("summary", "ملخص الشركات غير جاهز. أعد بناءه من لوحة التحكم.");
+            throw new Error("قائمة الشركات غير جاهزة حاليًا. يرجى المحاولة لاحقًا.");
+        }
+        const makes = [...new Set(snapshot.data().makes.map((make) => cleanText(make, 100)).filter(Boolean))]
             .sort((a, b) => a.localeCompare(b));
         writeSessionCache("makes", makes);
         return makes;
@@ -226,6 +309,8 @@
             return rows;
         } catch (error) {
             // If a project temporarily lacks an index, keep the public search usable.
+            if (!isIndexError(error)) throw error;
+            reportHealth("make-index", "استعلام الشركات يستخدم قراءة موسعة بسبب فهرس مفقود. " + error.message);
             console.warn("[Smart Dragon Firestore] Make query fallback", error);
             const rows = (await loadApprovedVehicles()).filter(
                 (v) => cleanText(v.make, 100) === makeValue
@@ -259,6 +344,8 @@
             writeSessionCache(sessionKey, rows);
             return rows;
         } catch (error) {
+            if (!isIndexError(error)) throw error;
+            reportHealth("model-index", "استعلام الموديلات يستخدم قراءة موسعة بسبب فهرس مفقود. " + error.message);
             console.warn("[Smart Dragon Firestore] Make/model query fallback", error);
             const rows = (await queryApprovedVehiclesByMake(makeValue)).filter(
                 (v) => cleanText(v.model, 150) === modelValue
@@ -495,8 +582,7 @@
             });
         });
 
-        await batch.commit();
-        clearPublicVehicleCache();
+        await commitVehicleBatch(batch);
         await writeAudit("vehicle_saved", vehicleRef.id, { fitmentCount: fitments.length });
         return vehicleRef.id;
     }
@@ -512,8 +598,7 @@
         const batch = database.batch();
         fitmentSnap.docs.forEach((doc) => batch.delete(doc.ref));
         batch.delete(vehicleRef);
-        await batch.commit();
-        clearPublicVehicleCache();
+        await commitVehicleBatch(batch);
         await writeAudit("vehicle_deleted", vehicleRef.id, { deletedBy: user.uid });
     }
 
@@ -1086,6 +1171,19 @@
         authContext();
         if (!isOwner()) throw new Error("الاستيراد متاح للمالك فقط.");
         if (!Array.isArray(records)) throw new Error("ملف البيانات غير صالح.");
+        const ids = new Set();
+        for (const record of records) {
+            validateVehiclePayload(record?.vehicle || {});
+            if (!normalizeFitments(record?.fitments).length) throw new Error("سجل بلا بيانات توافق.");
+            const backup = record?.source?.type === "firestore_backup";
+            const row = record?.source?.sourceRow;
+            if (!backup && (record?.source?.migrationStatus !== "ready" || !Number.isInteger(row) || row < 2)) {
+                throw new Error("يسمح باستيراد السجلات الجاهزة ذات رقم صف صحيح فقط.");
+            }
+            const id = backup ? record.source.backupVehicleId : `legacy_${row}`;
+            if (!id || String(id).includes("/") || ids.has(id)) throw new Error("معرف استيراد غير صالح أو مكرر.");
+            ids.add(id);
+        }
 
         const database = db();
         const now = firebase.firestore.FieldValue.serverTimestamp();
@@ -1096,12 +1194,12 @@
 
         async function flush() {
             if (operations === 0) return;
-            await batch.commit();
+            await commitVehicleBatch(batch);
             batch = database.batch();
             operations = 0;
         }
 
-        for (const record of records.slice(0, 1000)) {
+        for (const record of records) {
             const sourceRow = Number(record?.source?.sourceRow) || (written + 1);
             const backupVehicleId = cleanText(record?.source?.backupVehicleId, 200);
             const canUseBackupId = record?.source?.type === "firestore_backup"
@@ -1186,6 +1284,9 @@
     }
 
     window.SmartDragonFirestore = Object.freeze({
+        getHealthWarnings,
+        checkSearchHealth,
+        rebuildMakesSummary,
         getVehicleMakes,
         getVehicleModels,
         getVehicleYears,

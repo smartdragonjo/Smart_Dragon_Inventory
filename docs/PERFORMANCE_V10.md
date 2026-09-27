@@ -1,5 +1,9 @@
 # Public search performance v10
 
+> Superseded for make lookup by the `meta/makes` implementation. See
+> [Admin setup and deployment order](ADMIN_SETUP.md#3a-deployment-order-and-search-health).
+> The notes below describe the previous v10 behavior.
+
 The public vehicle selector now avoids re-reading the complete approved vehicle collection after the manufacturer is chosen.
 
 - Manufacturer list: loaded once per browser session and cached in `sessionStorage` for 10 minutes.

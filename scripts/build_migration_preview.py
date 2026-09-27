@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from collections import defaultdict
 from pathlib import Path
+from analyze_csv import is_unknown, is_not_applicable
 
 SOURCE_FILE = Path("exports/data_clean.csv")
 OUTPUT_FILE = Path("exports/migration_preview.csv")
@@ -21,17 +22,6 @@ EXPECTED_COLUMNS = [
     "Arabic_Keywords",
     "Arabic_Make",
 ]
-
-UNKNOWN_VALUES = {
-    "",
-    "unknown",
-    "لا توجد معلومات",
-}
-
-NOT_APPLICABLE_VALUES = {
-    "n/a",
-    "na",
-}
 
 YEAR_MIN = 1950
 YEAR_MAX = 2100
@@ -57,14 +47,6 @@ def parse_year(value: str) -> int | None:
         return None
 
     return year
-
-
-def is_unknown(value: str) -> bool:
-    return key(value) in UNKNOWN_VALUES
-
-
-def is_not_applicable(value: str) -> bool:
-    return key(value) in NOT_APPLICABLE_VALUES
 
 
 def read_records(path: Path) -> list[dict[str, str]]:

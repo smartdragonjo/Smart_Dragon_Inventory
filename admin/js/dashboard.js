@@ -757,13 +757,13 @@
 
     async function importLegacy() {
         if (!isOwner()) return;
-        if (!confirm("سيتم استيراد البيانات الحالية من data/vehicles.json إلى Firestore. يمكن تشغيل العملية مرة أخرى بدون إنشاء نسخ مكررة للسجلات القديمة. متابعة؟")) return;
+        if (!confirm("سيتم استيراد السجلات الجاهزة من exports/import_ready.json إلى Firestore. إعادة التشغيل تحدّث السجلات بنفس المعرفات. متابعة؟")) return;
         const button = $("importLegacyButton");
         try {
             setBusy(button, true, "جاري الاستيراد...");
             message($("dashboardMessage"), "جاري تحميل ملف البيانات...", "info");
-            const response = await fetch("../data/vehicles.json", { cache: "no-store" });
-            if (!response.ok) throw new Error(`تعذر تحميل vehicles.json (HTTP ${response.status}).`);
+            const response = await fetch("../exports/import_ready.json", { cache: "no-store" });
+            if (!response.ok) throw new Error(`تعذر تحميل import_ready.json (HTTP ${response.status}).`);
             const records = await response.json();
             const count = await SmartDragonFirestore.importLegacyVehicles(records);
             message($("dashboardMessage"), `تم استيراد/تحديث ${count} سجل بنجاح.`, "success");
@@ -1289,6 +1289,7 @@
             return;
         }
         showApp();
+        await SmartDragonFirestore.checkSearchHealth();
         if (isOwner()) {
             try {
                 await SmartDragonFirestore.ensureDefaultCategories();
@@ -1303,6 +1304,29 @@
 
     async function initialize() {
         bindEvents();
+        const renderHealth = () => {
+            const warnings = SmartDragonFirestore.getHealthWarnings();
+            const banner = $("firestoreHealthWarning");
+            banner.textContent = warnings.join("\n");
+            banner.hidden = warnings.length === 0;
+        };
+        window.addEventListener("smartdragon:firestore-health", renderHealth);
+        window.addEventListener("storage", renderHealth);
+        renderHealth();
+        $("checkSearchHealthButton").addEventListener("click", async () => {
+            await SmartDragonFirestore.checkSearchHealth();
+            renderHealth();
+        });
+        $("rebuildMakesButton").addEventListener("click", async () => {
+            const button = $("rebuildMakesButton");
+            try {
+                setBusy(button, true);
+                await SmartDragonFirestore.rebuildMakesSummary();
+                await SmartDragonFirestore.checkSearchHealth();
+                message($("dashboardMessage"), "تم تحديث ملخص الشركات.", "success");
+            } catch (error) { message($("dashboardMessage"), error.message, "error"); }
+            finally { setBusy(button, false); }
+        });
         try {
             const result = await SmartDragonAuth.initialize();
             if (result.user && result.profile) {

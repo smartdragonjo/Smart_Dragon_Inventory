@@ -1,0 +1,108 @@
+﻿Source_Row,Make,Model,Year_Start,Year_End,Arabic_Make,Arabic_Keywords,Low_Beam_Bulb,High_Beam_Bulb,Fog_Light_Bulb,Wiper_Driver_Inch,Wiper_Passenger_Inch,Screen_Frame_Type_Size,Data_Quality,Has_Overlap,Warnings
+2,Toyota,Corolla,2015,2018,تويوتا,كورولا,9012,9012,N/A,26,16,Double DIN / 9-inch to 10-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 69 (2014-2019). | حقول غير منطبقة (N/A): Fog_Light_Bulb.
+3,Toyota,Corolla,2019,2026,تويوتا,كورولا,LED/OEM varies by trim,LED/OEM varies by trim,N/A,28,14,8-inch / 9-inch / 10-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 69 (2014-2019). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+4,Toyota,Camry,2015,2017,تويوتا,كامري,9005,9005,9006,26,18,Double DIN / 9-inch to 10-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 70 (2015-2021).
+5,Toyota,Camry,2018,2026,تويوتا,كامري,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,18,8-inch / 9-inch / 10-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 70 (2015-2021). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+6,Toyota,RAV4,2015,2018,تويوتا,راف 4,9005,9005,9006,26,16,Double DIN / 9-inch to 10-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 71 (2016-2022).
+7,Toyota,RAV4,2019,2026,تويوتا,راف 4,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,7-inch / 8-inch / 9-inch / 10-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 71 (2016-2022). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+8,Toyota,Prado,2015,2026,تويوتا,برادو,LED/OEM varies by trim,LED/OEM varies by trim,N/A,24,24,8-inch / 9-inch / 10-inch Android frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+9,Toyota,Fortuner,2015,2026,تويوتا,فورتشنر,HB3/9005,HB3/9005,H11,26,16,Double DIN / 9-inch Android frame,complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+10,Toyota,Yaris,2015,2020,تويوتا,يارس,HIR2/9012,HIR2/9012,H11,26,14,Double DIN / 9-inch Android frame,complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+11,Toyota,Yaris,2021,2026,تويوتا,يارس,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,14,8-inch / 9-inch Android frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+12,Toyota,Corolla Cross,2022,2026,تويوتا,كورولا كروس,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,9-inch / 10-inch Android frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+13,Hyundai,Elantra,2015,2016,هيونداي,إلنترا,H11,H1,H8/ H11,28,14,Double DIN / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 82 (2015-2020).
+14,Hyundai,Elantra,2017,2020,هيونداي,إلنترا,LED/OEM varies by trim,LED/OEM varies by trim,N/A,28,14,8-inch / 10-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 82 (2015-2020). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+15,Hyundai,Elantra,2021,2026,هيونداي,إلنترا,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,10.25-inch / 12.3-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+16,Hyundai,Accent,2015,2017,هيونداي,أكسنت,H11,H1,H11,26,14,Double DIN / 9-inch Android frame,complete,no,
+17,Hyundai,Accent,2018,2026,هيونداي,أكسنت,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,14,8-inch / 9-inch Android frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+18,Hyundai,Tucson,2015,2018,هيونداي,توسان,H11,H1,H8,26,16,8-inch / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 84 (2015-2020).
+19,Hyundai,Tucson,2019,2026,هيونداي,توسان,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,10.25-inch OEM-compatible frame,complete,yes,نطاق السنوات يتداخل مع الصف 84 (2015-2020). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+20,Hyundai,Sonata,2015,2017,هيونداي,سوناتا,H11,H1,H8,26,19,8-inch / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 83 (2015-2019).
+21,Hyundai,Sonata,2018,2026,هيونداي,سوناتا,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,19,10.25-inch / 12.3-inch OEM-compatible frame,complete,yes,نطاق السنوات يتداخل مع الصف 83 (2015-2019). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+22,Hyundai,Creta,2015,2020,هيونداي,كريتا,H11,H1,H8,26,16,7-inch / 9-inch Android frame,complete,no,
+23,Hyundai,Creta,2021,2026,هيونداي,كريتا,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,10.25-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+24,Kia,Sportage,2015,2016,كيا,سبورتاج,H7,H1,H11,24,18,7-inch / 8-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 79 (2016-2021).
+25,Kia,Sportage,2017,2022,كيا,سبورتاج,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,8-inch / 10.25-inch OEM-compatible frame,complete,yes,نطاق السنوات يتداخل مع الصف 79 (2016-2021). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+26,Kia,Sportage,2023,2026,كيا,سبورتاج,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,12.3-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+27,Kia,Cerato,2015,2018,كيا,سيراتو,H7,H1,H11,26,14,8-inch / 9-inch Android frame,complete,no,
+28,Kia,Cerato,2019,2026,كيا,سيراتو,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,14,10.25-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+29,Kia,Rio,2015,2017,كيا,ريو,H4,H4,H11,26,14,Double DIN / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 80 (2015-2019).
+30,Kia,Rio,2018,2023,كيا,ريو,H11,H1,H8,26,14,8-inch / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 80 (2015-2019).
+31,Kia,Seltos,2020,2026,كيا,سيلتوس,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,8-inch / 10.25-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+32,Nissan,Sentra,2015,2019,نيسان,سنترا,H11,H11,H11,28,15,Double DIN / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 76 (2013-2019).
+33,Nissan,Sentra,2020,2026,نيسان,سنترا,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,8-inch / 9-inch Android frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+34,Nissan,Altima,2015,2018,نيسان,ألتيما,H11,H11,H11,26,17,8-inch / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 77 (2013-2018).
+35,Nissan,Altima,2019,2026,نيسان,ألتيما,LED/OEM varies by trim,LED/OEM varies by trim,N/A,28,17,12.3-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+36,Nissan,Sunny,2015,2026,نيسان,صني,H4,H4,H11,26,14,Double DIN / 9-inch Android frame,complete,no,
+37,Nissan,X-Trail,2015,2022,نيسان,إكس تريل,H11,H11,H11,26,16,7-inch / 9-inch Android frame,complete,no,
+38,Nissan,X-Trail,2023,2026,نيسان,إكس تريل,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,12.3-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+39,Honda,Civic,2015,2015,هوندا,سيفيك,H11,H11,H11,26,18,7-inch / 9-inch Android frame,complete,no,
+41,Honda,Civic,2022,2026,هوندا,سيفيك,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,18,9-inch / 10.2-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+42,Honda,Accord,2015,2017,هوندا,أكورد,H11,H11,H11,26,19,8-inch / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 74 (2015-2022).
+43,Honda,Accord,2018,2026,هوندا,أكورد,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,19,8-inch / 9-inch / 12.3-inch OEM-compatible frame,complete,yes,نطاق السنوات يتداخل مع الصف 74 (2015-2022). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+44,Honda,CR-V,2015,2016,هوندا,سي آر-في,H11,H11,H11,26,16,7-inch / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 75 (2015-2022).
+45,Honda,CR-V,2017,2022,هوندا,سي آر-في,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,7-inch / 9-inch / 9-inch OEM-compatible frame,complete,yes,نطاق السنوات يتداخل مع الصف 75 (2015-2022). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+46,Honda,CR-V,2023,2026,هوندا,سي آر-في,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,9-inch / 10.2-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+47,Mazda,Mazda3,2015,2018,مازدا,مازدا 3,H11,H1,H11,26,17,7-inch / 8-inch Android frame,complete,no,
+48,Mazda,Mazda3,2019,2026,مازدا,مازدا 3,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,17,8.8-inch / 10.25-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+49,Mazda,CX-5,2015,2016,مازدا,سي إكس-5,H11,H1,H11,24,18,7-inch / 8-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 87 (2013-2018).
+50,Mazda,CX-5,2017,2026,مازدا,سي إكس-5,LED/OEM varies by trim,LED/OEM varies by trim,N/A,24,18,10.25-inch OEM-compatible frame,complete,yes,نطاق السنوات يتداخل مع الصف 87 (2013-2018). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+51,Mazda,CX-3,2015,2021,مازدا,سي إكس-3,H11,H1,H11,26,14,7-inch / 8-inch Android frame,complete,no,
+52,Mazda,CX-30,2020,2026,مازدا,سي إكس-30,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,17,8.8-inch / 10.25-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+53,Chevrolet,Cruze,2015,2019,شيفروليه,كروز,H13,H13,H11,26,17,7-inch / 8-inch Android frame,complete,no,
+54,Chevrolet,Malibu,2015,2016,شيفروليه,ماليبو,H11,H11,H11,26,17,8-inch / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 55 (2016-2026). | نطاق السنوات يتداخل مع الصف 89 (2016-2021).
+55,Chevrolet,Malibu,2016,2026,شيفروليه,ماليبو,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,17,8-inch / 9-inch / 8-inch OEM-compatible frame,complete,yes,نطاق السنوات يتداخل مع الصف 54 (2015-2016). | نطاق السنوات يتداخل مع الصف 89 (2016-2021). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+56,Chevrolet,Equinox,2015,2017,شيفروليه,إكوينوكس,H11,H11,H11,24,17,7-inch / 8-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 90 (2016-2021).
+57,Chevrolet,Equinox,2018,2026,شيفروليه,إكوينوكس,LED/OEM varies by trim,LED/OEM varies by trim,N/A,24,17,8-inch / 10-inch OEM-compatible frame,complete,yes,نطاق السنوات يتداخل مع الصف 90 (2016-2021). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+58,Ford,Escape,2015,2016,فورد,إسكيب,9005,9005,9006,28,28,8-inch / 9-inch Android frame,complete,no,
+59,Ford,Escape,2017,2019,فورد,إسكيب,LED/OEM varies by trim,LED/OEM varies by trim,N/A,28,28,8-inch / 10-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+60,Ford,Escape,2020,2026,فورد,إسكيب,LED/OEM varies by trim,LED/OEM varies by trim,N/A,28,28,8-inch / 13.2-inch OEM-compatible frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+61,Ford,Focus,2015,2018,فورد,فوكس,H11,H1,H11,28,14,8-inch / 9-inch Android frame,complete,yes,نطاق السنوات يتداخل مع الصف 65 (2012-2018).
+62,Ford,Explorer,2015,2019,فورد,إكسبلورر,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,8-inch / 10-inch Android frame,complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+63,Ford,Explorer,2020,2026,فورد,إكسبلورر,LED/OEM varies by trim,LED/OEM varies by trim,N/A,26,16,10.1-inch / 13.2-inch OEM-compatible frame,complete,yes,نطاق السنوات يتداخل مع الصف 88 (2020-2023). | نطاق السنوات يتداخل مع الصف 107 (2020-2023). | حقول غير منطبقة (N/A): Fog_Light_Bulb. | بيانات الإضاءة تعتمد على الفئة/Trim ويجب فصلها عن كود اللمبة.
+64,Ford,Flex,2013,2019,فورد,فليكس,H11,9005 (HB3),H11,24,20,8-inch (Double DIN compatible),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+65,Ford,Focus,2012,2018,فورد,فوكس,H11,9005 (HB3),H11,24,16,8-inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 61 (2015-2018). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+66,Ford,Fusion,2013,2020,فورد,فيوجن,H11,9005 (HB3),H11,24,20,8-inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+67,Ford,Mustang,2015,2023,فورد,موستانج,H11,9005 (HB3),N/A,24,19,8-inch (Double DIN/Sync),complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+68,Ford,Ranger,2015,2022,فورد,رينجر,H11,9005 (HB3),H11,24,22,8-inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+69,Toyota,Corolla,2014,2019,تويوتا,كورولا,H11,9005 (HB3),H11,24,16,7-inch (Single/Double DIN options),complete,yes,نطاق السنوات يتداخل مع الصف 2 (2015-2018). | نطاق السنوات يتداخل مع الصف 3 (2019-2026). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+70,Toyota,Camry,2015,2021,تويوتا,كامري,H11,9005 (HB3),H11,26,16,7-8 inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 4 (2015-2017). | نطاق السنوات يتداخل مع الصف 5 (2018-2026). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+71,Toyota,RAV4,2016,2022,تويوتا,راف 4,H11,9005 (HB3),H11,26,16,7-8 inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 6 (2015-2018). | نطاق السنوات يتداخل مع الصف 7 (2019-2026). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+72,Toyota,Hilux,2015,2021,تويوتا,هايلوكس,H11,9005 (HB3),H11,22,20,7-inch (Single/Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+74,Honda,Accord,2015,2022,هوندا,أكورد,H11,9005 (HB3),H11,26,20,8-inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 42 (2015-2017). | نطاق السنوات يتداخل مع الصف 43 (2018-2026). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+75,Honda,CR-V,2015,2022,هوندا,سي آر-في,H11,9005 (HB3),H11,26,16,7-8 inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 44 (2015-2016). | نطاق السنوات يتداخل مع الصف 45 (2017-2022). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+76,Nissan,Sentra,2013,2019,نيسان,سنترا,H11,9005 (HB3),H11,24,16,7-inch (Single DIN/Double DIN options),complete,yes,نطاق السنوات يتداخل مع الصف 32 (2015-2019). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+77,Nissan,Altima,2013,2018,نيسان,ألتيما,H11,9005 (HB3),H11,26,16,7-8 inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 34 (2015-2018). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+78,Nissan,Rogue,2014,2020,نيسان,روغ,H11,9005 (HB3),H11,26,16,7-8 inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+79,Kia,Sportage,2016,2021,كيا,سبورتاج,H11,9005 (HB3),H11,24,18,7-inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 24 (2015-2016). | نطاق السنوات يتداخل مع الصف 25 (2017-2022). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+80,Kia,Rio,2015,2019,كيا,ريو,H11,9005 (HB3),H11,22,18,7-inch (Single/Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 29 (2015-2017). | نطاق السنوات يتداخل مع الصف 30 (2018-2023). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+81,Kia,Optima (K5),2016,2020,كيا,أوبتيما (K5),H11,9005 (HB3),H11,26,16,8-inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+82,Hyundai,Elantra,2015,2020,هيونداي,إلنترا,H11,9005 (HB3),H11,24,16,7-inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 13 (2015-2016). | نطاق السنوات يتداخل مع الصف 14 (2017-2020). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+83,Hyundai,Sonata,2015,2019,هيونداي,سوناتا,H11,9005 (HB3),H11,26,20,8-inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 20 (2015-2017). | نطاق السنوات يتداخل مع الصف 21 (2018-2026). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+84,Hyundai,Tucson,2015,2020,هيونداي,توسان,H11,9005 (HB3),H11,26,16,7-8 inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 18 (2015-2018). | نطاق السنوات يتداخل مع الصف 19 (2019-2026). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+85,Mazda,3,2014,2018,مازدا,مازدا 3,H11,9005 (HB3),H11,24,18,7-inch (Single/Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+86,Mazda,6,2014,2018,مازدا,مازدا 6,H11,9005 (HB3),H11,26,18,7-8 inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+87,Mazda,CX-5,2013,2018,مازدا,سي إكس-5,H11,9005 (HB3),H11,26,18,7-8 inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 49 (2015-2016). | نطاق السنوات يتداخل مع الصف 50 (2017-2026). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+89,Chevrolet,Malibu,2016,2021,شيفروليه,ماليبو,H11,9005 (HB3),H11,24,20,7-8 inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 54 (2015-2016). | نطاق السنوات يتداخل مع الصف 55 (2016-2026). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+90,Chevrolet,Equinox,2016,2021,شيفروليه,إكوينوكس,H11,9005 (HB3),H11,26,22,8-inch (Double DIN),complete,yes,نطاق السنوات يتداخل مع الصف 56 (2015-2017). | نطاق السنوات يتداخل مع الصف 57 (2018-2026). | يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+91,Chevrolet,Spark,2016,2020,شيفروليه,سبارك,H4,H4,H11,20,16,7-inch (Single DIN),complete,no,
+92,Chevrolet,Silverado,2014,2019,شيفروليه,سيلفرادو,9005 (HB3),9005 (HB3),H11,22,22,8-inch (Aftermarket Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+93,BMW,3 Series,2012,2019,بي إم دبليو,الفئة الثالثة,H7,H7,N/A,24,20,6.5-8.8 inch (OEM sizes vary),complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb.
+94,Mercedes,C-Class,2014,2020,مرسيدس,سي كلاس,H7,H7,N/A,24,20,7-inch (OEM multimedia),complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb. | اسم الشركة قد يحتاج توحيداً مع Mercedes-Benz.
+95,Volkswagen,Golf,2015,2019,فولكس فاجن,غولف,H7,H7,N/A,24,16,6.5-8 inch (Aftermarket Double DIN),complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb.
+96,Volkswagen,Passat,2015,2019,فولكس فاجن,باسات,H7,H7,N/A,26,16,8-inch (Double DIN),complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb.
+97,Renault,Clio,2015,2019,رينو,كليو,H7,H7,H11,24,16,7-inch (Single/Double DIN),complete,no,
+98,Renault,Megane,2016,2020,رينو,ميغان,H7,H7,H11,26,20,7-8 inch (Double DIN),complete,no,
+99,Suzuki,Swift,2015,2019,سوزوكي,سويفت,H4,H4,N/A,20,16,7-inch (Single DIN),complete,no,حقول غير منطبقة (N/A): Fog_Light_Bulb.
+100,Subaru,Impreza,2015,2021,سوبارو,إمبريزا,H11,9005 (HB3),H11,26,16,7-inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+101,Subaru,Forester,2014,2018,سوبارو,فورستر,H11,9005 (HB3),H11,26,20,7-8 inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+102,Dodge,Charger,2015,2020,دودج,تشارجر,H11,9005 (HB3),H11,26,20,8-inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+103,Jeep,Grand Cherokee,2014,2020,جيب,جراند شيروكي,H11,9005 (HB3),H11,26,20,8-inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+104,Honda,Odyssey,2015,2017,هوندا,أوديسي,H11,9005 (HB3),H11,26,20,8-inch (Double DIN),complete,no,يوجد كود لمبة بصيغة Alias ويحتاج توحيداً منظماً لاحقاً.
+108,BYD,Atto3 (Yuan Plus),2023,2026,بي واي دي,أتو 3 (يوان بلس),LED/OEM,LED/OEM,LED/OEM,24,17,12.8-inch OEM,complete,no,
+109,BYD,Seal,2023,2026,بي واي دي,سيل,LED/OEM,LED/OEM,LED/OEM,24,19,15.6-inch OEM,complete,no,
+110,Tesla,Model 3,2020,2026,تسلا,موديل 3,LED/OEM,LED/OEM,LED/OEM,26,19,15-inch OEM,complete,no,
+111,Tesla,Model Y,2020,2026,تسلا,موديل Y,LED/OEM,LED/OEM,LED/OEM,26,20,15-inch OEM,complete,no,
+112,Kia,EV6,2021,2026,كيا,EV6,LED/OEM,LED/OEM,LED/OEM,26,16,12.3-inch OEM,complete,no,
+113,Hyundai,Ioniq 6,2023,2026,هيونداي,أيونيك 6,LED/OEM,LED/OEM,LED/OEM,26,18,12.3-inch OEM,complete,no,
+115,Toyota,bZ4X,2023,2026,تويوتا,بي زد 4 إكس,LED/OEM,LED/OEM,LED/OEM,24,20,12.3-inch OEM,complete,no,

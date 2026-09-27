@@ -47,7 +47,15 @@ logs/
 
 # Local backups / exports
 backups/
-exports/
+exports/*
+!exports/data_analysis.json
+!exports/data_clean.csv
+!exports/data_issues.csv
+!exports/data_duplicates.csv
+!exports/migration_preview.csv
+!exports/import_ready.json
+!exports/import_ready.csv
+!exports/import_summary.json
 
 # Temporary files
 *.tmp
