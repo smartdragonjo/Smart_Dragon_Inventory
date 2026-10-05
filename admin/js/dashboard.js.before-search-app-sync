@@ -358,7 +358,6 @@
         try {
             const stats = await SmartDragonFirestore.getDashboardStats();
             $("statVehicles").textContent = stats.vehicles;
-            $("statIncomplete").textContent = stats.incomplete ?? 0;
             $("statPending").textContent = stats.pending;
             $("statCategories").textContent = stats.categories;
             $("statUsers").textContent = stats.users ?? "—";
@@ -372,7 +371,7 @@
         message($("vehiclesMessage"), "");
         $("vehiclesTableBody").innerHTML = '<tr><td colspan="6"><div class="admin-empty-state"><strong>جاري التحميل...</strong></div></td></tr>';
         try {
-            state.vehicles = await SmartDragonFirestore.listVehicles({ limit: 5000 });
+            state.vehicles = await SmartDragonFirestore.listVehicles({ limit: 500 });
             renderVehicles();
         } catch (error) {
             console.error(error);
@@ -392,17 +391,6 @@
     function collectCurrentOverlaps() {
         const groups = new Map();
         state.vehicles.forEach((vehicle) => {
-            if (
-                vehicle.yearStart === null ||
-                vehicle.yearEnd === null ||
-                vehicle.yearStart === "" ||
-                vehicle.yearEnd === "" ||
-                !Number.isInteger(Number(vehicle.yearStart)) ||
-                !Number.isInteger(Number(vehicle.yearEnd))
-            ) {
-                return;
-            }
-
             const key = vehicleGroupKey(vehicle);
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key).push(vehicle);
@@ -481,12 +469,8 @@
             <tr>
                 <td>${escapeHtml(v.make)}</td>
                 <td>${escapeHtml(v.model)}</td>
-                <td>${v.status === "incomplete"
-                    ? "غير محددة"
-                    : `${escapeHtml(v.yearStart)}–${escapeHtml(v.yearEnd)}`}</td>
-                <td>${v.status === "incomplete"
-                    ? '<span class="admin-badge warning">يحتاج استكمال</span>'
-                    : `<span class="admin-badge approved">${escapeHtml(v.status || "approved")}</span>`}</td>
+                <td>${escapeHtml(v.yearStart)}–${escapeHtml(v.yearEnd)}</td>
+                <td><span class="admin-badge approved">${escapeHtml(v.status || "approved")}</span></td>
                 <td>${v.hasOverlap ? '<span class="admin-badge warning">يوجد تداخل</span>' : '<span class="admin-badge neutral">لا</span>'}</td>
                 <td><button class="admin-link-button" type="button" data-edit-vehicle="${escapeHtml(v.id)}">فتح / تعديل</button></td>
             </tr>
@@ -768,107 +752,6 @@
             message($("reviewsMessage"), error.message || "تعذر الاعتماد الجماعي.", "error");
         } finally {
             setBusy(button, false);
-        }
-    }
-
-
-    async function syncSearchAppVehicles(initial = false, silent = false) {
-        if (!isOwner()) {
-            return null;
-        }
-
-        const button =
-            $("syncSearchAppButton");
-
-        try {
-            if (!silent) {
-                setBusy(
-                    button,
-                    true,
-                    "جاري المزامنة..."
-                );
-
-                message(
-                    $("dashboardMessage"),
-                    initial
-                        ? "جاري تنفيذ المزامنة الأولى مع Search App..."
-                        : "جاري فحص السيارات الجديدة في Search App...",
-                    "info"
-                );
-            }
-
-            const result =
-                await SmartDragonFirestore
-                    .syncSearchAppVehicles({
-                        initialize:
-                            initial
-                    });
-
-            if (
-                result
-                    ?.requiresInitialSync
-            ) {
-                if (!silent) {
-                    message(
-                        $("dashboardMessage"),
-                        "المزامنة التلقائية لم تبدأ بعد. اضغط زر مزامنة سيارات Search App لتنفيذ المزامنة الأولى.",
-                        "info"
-                    );
-                }
-
-                return result;
-            }
-
-            if (
-                !silent ||
-                result.added > 0
-            ) {
-                message(
-                    $("dashboardMessage"),
-                    result.added > 0
-                        ? `تمت المزامنة: أضيفت ${result.added} سيارة جديدة كـ «تحتاج استكمال» ولن تظهر للعامة قبل استكمال بياناتها ونشرها.`
-                        : "تم فحص Search App ولا توجد سيارات جديدة لإضافتها.",
-                    "success"
-                );
-            }
-
-            await loadStats();
-
-            if (
-                $("vehiclesView")
-                    ?.classList
-                    .contains("active")
-            ) {
-                await loadVehicles();
-            }
-
-            return result;
-
-        } catch (error) {
-
-            console.error(
-                error
-            );
-
-            if (!silent) {
-                message(
-                    $("dashboardMessage"),
-                    error.message ||
-                        "تعذر مزامنة سيارات Search App.",
-                    "error"
-                );
-            }
-
-            return null;
-
-        } finally {
-
-            if (!silent) {
-                setBusy(
-                    button,
-                    false
-                );
-            }
         }
     }
 
@@ -1185,8 +1068,7 @@
         editor_invite_disabled: "تعطيل دعوة محرر",
         editor_updated: "تعديل محرر",
         editor_deleted: "حذف محرر",
-        legacy_import: "استيراد البيانات القديمة",
-        search_app_sync: "مزامنة سيارات Search App"
+        legacy_import: "استيراد البيانات القديمة"
     });
 
     function auditDateText(value) {
@@ -1347,14 +1229,6 @@
         $("deleteVehicleButton").addEventListener("click", deleteCurrentVehicle);
         $("closeVehicleModalButton").addEventListener("click", closeVehicleModal);
         document.querySelectorAll("[data-close-modal='true']").forEach((el) => el.addEventListener("click", closeVehicleModal));
-        $("syncSearchAppButton").addEventListener(
-            "click",
-            () =>
-                syncSearchAppVehicles(
-                    true,
-                    false
-                )
-        );
         $("importLegacyButton").addEventListener("click", importLegacy);
         $("exportBackupButton").addEventListener("click", exportLocalBackup);
         $("bulkApproveButton").addEventListener("click", bulkApprove);
@@ -1426,29 +1300,6 @@
         state.categories = await SmartDragonFirestore.getCategories();
         renderDynamicFitmentSections();
         await loadStats();
-
-        if (isOwner()) {
-            try {
-                const syncState =
-                    await SmartDragonFirestore
-                        .getSearchAppSyncState();
-
-                if (
-                    syncState
-                        ?.initialized === true
-                ) {
-                    await syncSearchAppVehicles(
-                        false,
-                        true
-                    );
-                }
-            } catch (error) {
-                console.warn(
-                    "[Smart Dragon Admin] Search App auto-sync skipped",
-                    error
-                );
-            }
-        }
     }
 
     async function initialize() {

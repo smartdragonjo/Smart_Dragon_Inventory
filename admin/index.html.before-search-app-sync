@@ -63,7 +63,6 @@
         <section id="dashboardView" class="admin-view active">
             <section class="admin-stats">
                 <article class="admin-stat-card"><span>السيارات</span><strong id="statVehicles">—</strong><small>السجلات في Firestore</small></article>
-                <article class="admin-stat-card"><span>تحتاج استكمال</span><strong id="statIncomplete">—</strong><small>قادمة من Search App ولا تظهر للعامة</small></article>
                 <article class="admin-stat-card"><span>بانتظار المراجعة</span><strong id="statPending">—</strong><small>طلبات المحررين</small></article>
                 <article class="admin-stat-card"><span>الأصناف</span><strong id="statCategories">—</strong><small>فئات بيانات التوافق</small></article>
                 <article class="admin-stat-card"><span>المستخدمون</span><strong id="statUsers">—</strong><small>Owner + Editors</small></article>
@@ -75,10 +74,7 @@
                         <h2>بدء العمل</h2>
                         <p>استيراد السجلات الجاهزة من <code>exports/import_ready.json</code>. إعادة الاستيراد تحدّث السجلات القديمة بنفس المعرفات؛ وقد تستبدل تعديلات أُجريت عليها لاحقًا.</p>
                     </div>
-                    <div class="admin-panel-actions">
-                        <button id="syncSearchAppButton" class="admin-primary-button owner-only" type="button">مزامنة سيارات Search App</button>
-                        <button id="importLegacyButton" class="admin-secondary-button owner-only" type="button">استيراد البيانات الحالية</button>
-                    </div>
+                    <button id="importLegacyButton" class="admin-primary-button owner-only" type="button">استيراد البيانات الحالية</button>
                 </div>
                 <div id="dashboardMessage" class="admin-message" hidden></div>
                 <button id="checkSearchHealthButton" class="admin-secondary-button" type="button">فحص فهارس البحث</button>
