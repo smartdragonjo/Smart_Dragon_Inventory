@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vehicle enrichment preview</title><link rel="stylesheet" href="enrichment.css"></head>
+<body><main><h1>Vehicle enrichment preview</h1><p>Local snapshot only. Proposals require review. Existing values are preserved.</p>
+<label>Backup JSON <input id="file" type="file" accept=".json,application/json"></label>
+<label>Incomplete vehicle <select id="vehicle" disabled></select></label>
+<button id="run" disabled>Run lookup</button> <button id="clear">Clear cache</button>
+<p id="status" role="status" aria-live="polite">Load a local backup to begin.</p>
+<section><h2>Original and normalized</h2><pre id="normalized"></pre></section>
+<section><h2>Provider results</h2><pre id="providers"></pre></section>
+<section><h2>Merged proposal</h2><p>Conflicting variants remain unresolved. Confidence is a heuristic, not a measured probability. Displacement is in cc.</p><div class="scroll"><table><thead><tr><th>Field</th><th>Value</th><th>Source</th><th>Confidence</th><th>Conflicts / alternatives</th></tr></thead><tbody id="proposal"></tbody></table></div></section>
+</main><script src="enrichment.js" defer></script></body></html>

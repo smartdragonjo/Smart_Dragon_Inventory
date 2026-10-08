@@ -1,0 +1,13 @@
+[
+  {"vehicle":{"make":"BMW","model":"BMW 525","dataQuality":"incomplete","yearStart":null,"yearEnd":null}},
+  {"vehicle":{"make":"Toyota","model":"Corolla","status":"incomplete","yearStart":null,"yearEnd":null}},
+  {"vehicle":{"make":"Chevrolet","model":"Malibu","status":"incomplete"}},
+  {"vehicle":{"make":"BYD","model":"Song Plus","status":"incomplete"},"fitments":[]},
+  {"vehicle":{"make":"Changan","model":"Changan S07","status":"incomplete"}},
+  {"vehicle":{"make":"Jetour","model":"Jetour T2","status":"incomplete"}},
+  {"vehicle":{"make":"Tesla","model":"Model 3","status":"incomplete"}},
+  {"vehicle":{"make":"Changan","model":"EADO 2022","status":"incomplete"}},
+  {"vehicle":{"make":"BYD","model":"BYD QIN PLUS","status":"incomplete"}},
+  {"vehicle":{"make":"Toyota","model":"Camry","status":"incomplete","yearStart":2018,"yearEnd":2018}},
+  {"vehicle":{"make":"Toyota","model":"Corolla","status":"approved","source":"admin","yearStart":2015,"yearEnd":2018},"fitments":[{"categorySlug":"lighting","source":"admin","fields":{"bulb":"H7"}}]}
+]

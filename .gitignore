@@ -60,3 +60,7 @@ exports/*
 # Temporary files
 *.tmp
 *.temp
+
+# Local enrichment inputs, cache and generated reports
+tooling/enrichment/local/
+reports/enrichment-*
