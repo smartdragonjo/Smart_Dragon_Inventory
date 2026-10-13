@@ -580,7 +580,6 @@
 
     async function openVehicleModal(vehicleId = null) {
         await ensureCategoriesLoaded();
-        window.SmartDragonVehicleEnrichment?.reset();
         state.currentVehicle = null;
         $("vehicleForm").reset();
         renderDynamicFitmentSections();
@@ -618,11 +617,6 @@
             $("vehicleHasOverlap").checked = record.hasOverlap === true;
             $("vehicleOverlapReason").value = record.overlapReason || "";
             fillDynamicFitments(record);
-            window.SmartDragonVehicleEnrichment?.open(() => ({
-                ...state.currentVehicle, id: $("vehicleId").value,
-                make: $("vehicleMake").value, model: $("vehicleModel").value,
-                yearStart: $("vehicleYearStart").value || null, yearEnd: $("vehicleYearEnd").value || null
-            }));
             $("deleteVehicleButton").hidden = !isOwner();
             scheduleVehicleValidation();
         } catch (error) {
@@ -632,7 +626,6 @@
     }
 
     function closeVehicleModal() {
-        window.SmartDragonVehicleEnrichment?.reset();
         $("vehicleModal").hidden = true;
         state.currentVehicle = null;
     }
