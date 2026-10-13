@@ -179,36 +179,31 @@
 
         errors.push(...validateFitmentForm());
 
-        const overlapReason = normalizeInputValue($("vehicleOverlapReason")?.value || "");
-        if ($("vehicleHasOverlap")?.checked && overlapReason && !SmartDragonValidation.validateNote(overlapReason)) {
-            errors.push("سبب التداخل يحتوي على نص غير صالح.");
-        }
-
         return { valid: errors.length === 0, errors, vehicle };
     }
 
+    function hideManualOverlapControls() {
+        const reasonWrap = $('vehicleOverlapReasonWrap');
+        if (reasonWrap) reasonWrap.hidden = true;
+        const checkbox = $('vehicleHasOverlap');
+        const checkboxLabel = checkbox?.closest('label');
+        if (checkboxLabel) checkboxLabel.hidden = true;
+    }
+
     function renderValidationSummary(localErrors = [], conflicts = state.currentConflicts) {
+        hideManualOverlapControls();
         const box = $("vehicleValidationSummary");
         if (!box) return;
         const duplicates = conflicts?.duplicates || [];
         const overlaps = conflicts?.overlaps || [];
-        const overlapAcknowledged = $("vehicleHasOverlap").checked;
         const items = [];
 
         localErrors.forEach((text) => items.push({ type: "error", text }));
         duplicates.forEach((item) => items.push({ type: "error", text: `سجل مكرر مطابق موجود: ${item.label}` }));
-        overlaps.forEach((item) => items.push({
-            type: overlapAcknowledged ? "warning" : "error",
-            text: `تداخل سنوات مع: ${item.label}${overlapAcknowledged ? " — تم تأكيد أن التداخل مقصود." : " — عدّل النطاق أو فعّل خيار التداخل المقصود."}`
+        overlaps.forEach(item => items.push({
+            type: 'error',
+            text: 'تداخل غير مفسر تلقائيًا مع: ' + item.label + '. شغّل إثراء البيانات للسجلين أو راجع نطاق السنوات.'
         }));
-
-        const reasonWrap = $("vehicleOverlapReasonWrap");
-        const reason = normalizeInputValue($("vehicleOverlapReason")?.value || "");
-        const needsReason = overlaps.length > 0 && overlapAcknowledged;
-        if (reasonWrap) reasonWrap.hidden = !needsReason;
-        if (needsReason && !reason) {
-            items.push({ type: "error", text: "اكتب سبب التداخل المقصود قبل الحفظ." });
-        }
 
         if (!items.length) {
             box.hidden = false;
@@ -236,7 +231,7 @@
             try {
                 const conflicts = await SmartDragonFirestore.checkVehicleConflicts(
                     $("vehicleId").value || null,
-                    { ...local.vehicle, hasOverlap: $("vehicleHasOverlap").checked }
+                    local.vehicle
                 );
                 if (sequence !== state.validationSequence) return;
                 state.currentConflicts = conflicts;
@@ -274,15 +269,9 @@
             throw new Error(`يوجد سجل مكرر مطابق: ${state.currentConflicts.duplicates[0].label}`);
         }
 
-        if (state.currentConflicts.overlaps.length && !$("vehicleHasOverlap").checked) {
-            throw new Error("يوجد تداخل في نطاق السنوات. عدّل النطاق أو فعّل خيار التداخل المقصود بعد التحقق.");
-        }
-
-        if (state.currentConflicts.overlaps.length && $("vehicleHasOverlap").checked) {
-            const reason = normalizeInputValue($("vehicleOverlapReason").value);
-            if (!reason) {
-                throw new Error("اكتب سبب التداخل المقصود قبل الحفظ.");
-            }
+        if (state.currentConflicts.overlaps.length) {
+            throw new Error('يوجد تداخل غير مفسر تلقائيًا مع: ' + state.currentConflicts.overlaps.map(item => item.label).join('، ')
+                + '. شغّل إثراء البيانات للسجلين أو راجع نطاق السنوات.');
         }
     }
 
@@ -412,7 +401,7 @@
                     const a = sorted[i];
                     const b = sorted[j];
                     const exact = Number(a.yearStart) === Number(b.yearStart) && Number(a.yearEnd) === Number(b.yearEnd);
-                    if (!exact && yearRangesOverlap(a.yearStart, a.yearEnd, b.yearStart, b.yearEnd)) {
+                    if (!exact && !SmartDragonFirestore.areVehicleVariants(a, b) && yearRangesOverlap(a.yearStart, a.yearEnd, b.yearStart, b.yearEnd)) {
                         overlaps.push({ a, b });
                     }
                 }
@@ -449,7 +438,7 @@
                 <div>
                     <strong>${escapeHtml(a.make)} ${escapeHtml(a.model)}</strong>
                     <span>${escapeHtml(a.yearStart)}–${escapeHtml(a.yearEnd)} ↔ ${escapeHtml(b.yearStart)}–${escapeHtml(b.yearEnd)}</span>
-                    ${a.overlapReason || b.overlapReason ? `<small>${escapeHtml(a.overlapReason || b.overlapReason)}</small>` : '<small>لا يوجد سبب موثق للتداخل.</small>'}
+                    <small>شغّل إثراء البيانات للسجلين أو راجع نطاق السنوات.</small>
                 </div>
                 <div class="admin-overlap-actions">
                     <button class="admin-link-button" type="button" data-edit-vehicle="${escapeHtml(a.id)}">فتح الأول</button>
@@ -540,8 +529,8 @@
                 yearStart: Number($("vehicleYearStart").value),
                 yearEnd: Number($("vehicleYearEnd").value),
                 dataQuality: "complete",
-                hasOverlap: $("vehicleHasOverlap").checked,
-                overlapReason: $("vehicleHasOverlap").checked ? $("vehicleOverlapReason").value : ""
+                hasOverlap: false,
+                overlapReason: ""
             },
             fitments: buildDynamicFitments()
         };
@@ -582,7 +571,7 @@
         renderDynamicFitmentSections();
         state.currentConflicts = { duplicates: [], overlaps: [] };
         $("vehicleValidationSummary").hidden = true;
-        $("vehicleOverlapReasonWrap").hidden = true;
+        hideManualOverlapControls();
         $("vehicleOverlapReason").value = "";
         $("vehicleId").value = vehicleId || "";
         $("deleteVehicleButton").hidden = true;
@@ -611,8 +600,7 @@
             $("vehicleArabicKeywords").value = (record.arabicKeywords || []).join("، ");
             $("vehicleYearStart").value = record.yearStart || "";
             $("vehicleYearEnd").value = record.yearEnd || "";
-            $("vehicleHasOverlap").checked = record.hasOverlap === true;
-            $("vehicleOverlapReason").value = record.overlapReason || "";
+            hideManualOverlapControls();
             fillDynamicFitments(record);
             window.SmartDragonVehicleEnrichment?.open(() => ({
                 ...state.currentVehicle, id: $("vehicleId").value,
@@ -1356,9 +1344,9 @@
         $("vehicleForm").addEventListener("submit", submitVehicle);
         [
             "vehicleMake", "vehicleModel", "vehicleArabicMake", "vehicleArabicKeywords",
-            "vehicleYearStart", "vehicleYearEnd", "vehicleHasOverlap", "vehicleOverlapReason"
+            "vehicleYearStart", "vehicleYearEnd"
         ].forEach((id) => {
-            $(id).addEventListener(id === "vehicleHasOverlap" ? "change" : "input", scheduleVehicleValidation);
+            $(id).addEventListener("input", scheduleVehicleValidation);
         });
         $("dynamicFitmentSections").addEventListener("input", scheduleVehicleValidation);
         $("deleteVehicleButton").addEventListener("click", deleteCurrentVehicle);

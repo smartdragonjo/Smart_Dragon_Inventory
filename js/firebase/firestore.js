@@ -165,6 +165,11 @@
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     }
 
+    function unexplainedOverlapMessage(overlaps) {
+        return 'يوجد تداخل غير مفسر تلقائيًا مع: ' + overlaps.map(item => item.label).join('، ')
+            + '. شغّل إثراء البيانات للسجلين أو راجع نطاق السنوات.';
+    }
+
     async function applyVehicleEnrichment(vehicleId,selection,metadata = {}) {
         const { user,profile } = authContext();
         if (!isOwner() || profile.role !== 'owner') throw new Error('اعتماد الإثراء متاح للمالك فقط.');
@@ -198,7 +203,7 @@
             validateVehiclePayload(candidate); complete = true;
             const conflicts = await checkVehicleConflicts(vehicleId,candidate);
             if (conflicts.duplicates.length) throw new Error('يوجد سجل مكرر مطابق.');
-            if (conflicts.overlaps.length && (!candidate.hasOverlap || !candidate.overlapReason)) throw new Error('يوجد تداخل غير معتمد. راجع نطاق السنوات والتداخل المقصود أولًا.');
+            if (conflicts.overlaps.length) throw new Error(unexplainedOverlapMessage(conflicts.overlaps));
         }
         const auditRef = database.collection(col('auditLogs')).doc();
         await database.runTransaction(async transaction => {
@@ -208,7 +213,7 @@
                 || current.data().hasOverlap !== before.hasOverlap || !sameValue(current.data().overlapReason,before.overlapReason)) throw new Error('تم تعديل بيانات السيارة بعد التحليل. أعد تشغيل الإثراء.');
             const now = firebase.firestore.FieldValue.serverTimestamp();
             const patch = { ...changes,enrichment: candidate.enrichment,status: complete ? 'approved' : 'incomplete',dataQuality: complete ? 'complete' : 'incomplete',updatedAt: now,updatedBy: user.uid };
-            if (complete) Object.assign(patch,{ identityKey: vehicleIdentityKey(candidate),approvedAt: now,approvedBy: user.uid });
+            if (complete) Object.assign(patch,{ identityKey: vehicleIdentityKey(candidate),approvedAt: now,approvedBy: user.uid,hasOverlap: false,overlapReason: '' });
             transaction.update(ref,patch);
             transaction.set(makesRef(),{ revision: firebase.firestore.FieldValue.increment(1),dirty: true },{ merge: true });
             transaction.set(auditRef,{ action: 'vehicle_enrichment_applied',targetId: ref.id,
@@ -1063,15 +1068,9 @@
         if (conflicts.duplicates.length) {
             throw new Error(`يوجد سجل مكرر مطابق لنفس الشركة والموديل ونطاق السنوات: ${conflicts.duplicates[0].label}`);
         }
-        if (conflicts.overlaps.length && vehicle.hasOverlap !== true) {
-            throw new Error(`يوجد تداخل في السنوات مع: ${conflicts.overlaps.map((x) => x.label).join("، ")}. راجع النطاق أو فعّل خيار التداخل المعروف إذا كان مقصودًا.`);
-        }
-        if (conflicts.overlaps.length && vehicle.hasOverlap === true && !vehicle.overlapReason) {
-            throw new Error("اكتب سبب التداخل المقصود قبل الحفظ.");
-        }
-
-        vehicle.hasOverlap = conflicts.overlaps.length > 0 && vehicle.hasOverlap === true;
-        if (!vehicle.hasOverlap) vehicle.overlapReason = "";
+        if (conflicts.overlaps.length) throw new Error(unexplainedOverlapMessage(conflicts.overlaps));
+        vehicle.hasOverlap = false;
+        vehicle.overlapReason = '';
 
         const database = db();
         const vehicleRef = vehicleId
@@ -1093,16 +1092,6 @@
             approvedAt: now,
             approvedBy: user.uid
         }, { merge: true });
-
-        if (conflicts.overlaps.length && vehicle.hasOverlap === true) {
-            conflicts.overlaps.forEach((conflict) => {
-                batch.set(database.collection(col("vehicles")).doc(conflict.id), {
-                    hasOverlap: true,
-                    updatedAt: now,
-                    updatedBy: user.uid
-                }, { merge: true });
-            });
-        }
 
         // Omitted/empty fitments never mean deletion; merge only supplied fields.
         for (const fitment of fitments) {
@@ -1166,14 +1155,9 @@
             if (conflicts.duplicates.length) {
                 throw new Error(`يوجد سجل مكرر مطابق: ${conflicts.duplicates[0].label}`);
             }
-            if (conflicts.overlaps.length && payload.vehicle.hasOverlap !== true) {
-                throw new Error(`يوجد تداخل في السنوات مع: ${conflicts.overlaps.map((x) => x.label).join("، ")}. راجع النطاق أو فعّل خيار التداخل المعروف إذا كان مقصودًا.`);
-            }
-            if (conflicts.overlaps.length && payload.vehicle.hasOverlap === true && !payload.vehicle.overlapReason) {
-                throw new Error("اكتب سبب التداخل المقصود قبل إرسال الطلب للمراجعة.");
-            }
-            payload.vehicle.hasOverlap = conflicts.overlaps.length > 0 && payload.vehicle.hasOverlap === true;
-            if (!payload.vehicle.hasOverlap) payload.vehicle.overlapReason = "";
+            if (conflicts.overlaps.length) throw new Error(unexplainedOverlapMessage(conflicts.overlaps));
+            payload.vehicle.hasOverlap = false;
+            payload.vehicle.overlapReason = '';
         }
 
         const vehicleLabel = cleanText(changeRequest?.vehicleLabel, 250);
