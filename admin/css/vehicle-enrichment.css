@@ -1,0 +1,7 @@
+.vehicle-enrichment-panel { margin-top: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.vehicle-enrichment-panel[hidden] { display: none; }
+.vehicle-enrichment-table { overflow-x: auto; }
+.vehicle-enrichment-table table { width: 100%; border-collapse: collapse; }
+.vehicle-enrichment-table th, .vehicle-enrichment-table td { padding: .65rem; text-align: start; border-bottom: 1px solid var(--border); vertical-align: top; }
+.vehicle-enrichment-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.vehicle-enrichment-preview { max-width: 1100px; margin: 2rem auto; padding: 1rem; }
