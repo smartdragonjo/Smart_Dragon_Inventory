@@ -46,10 +46,12 @@ export async function requestSuggestions(vehicle, { config = globalThis.SmartDra
         const response = await fetcher(endpoint.href, { method: 'POST', credentials: production ? 'omit' : 'same-origin', headers, redirect: 'error', signal: controller.signal,
             body: JSON.stringify({ vehicleId: vehicle.id ?? null, make: vehicle.make, model: vehicle.model, yearStart: vehicle.yearStart ?? null, yearEnd: vehicle.yearEnd ?? null, existingData }) });
         if (!response.ok) throw new EnrichmentClientError(({ 401: 'unauthenticated', 403: 'forbidden', 409: 'busy', 429: 'rate_limited' })[response.status] || 'backend_unavailable');
-        const r = await response.json(), statuses = ['manual','confirmed','candidate','ambiguous','unavailable'];
+        const r = await response.json(), statuses = ['manual','candidate','ambiguous','unavailable'];
         if (r.success !== true || r.previewOnly !== true || !r.identity || !Array.isArray(r.identity.aliasesApplied) || !Array.isArray(r.ambiguities) || !r.providers ||
             !r.fields || enrichmentFields.some(name => !r.fields[name] || !statuses.includes(r.fields[name].status) || !Array.isArray(r.fields[name].sources) ||
-                !Array.isArray(r.fields[name].alternatives) || !Number.isFinite(r.fields[name].confidence))) throw new EnrichmentClientError('invalid_response');
+                !Array.isArray(r.fields[name].alternatives) || !Number.isFinite(r.fields[name].confidence) || r.fields[name].confidence < 0 || r.fields[name].confidence > 1 ||
+                r.fields[name].sources.some(source => !['nhtsa','carapi','local_dataset'].includes(source)) ||
+                r.fields[name].alternatives.some(option => !option || !['string','number'].includes(typeof option.value) || !Array.isArray(option.sources)))) throw new EnrichmentClientError('invalid_response');
         return r;
     } catch (error) {
         if (error instanceof EnrichmentClientError) throw error;

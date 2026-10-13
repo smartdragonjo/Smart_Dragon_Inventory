@@ -110,22 +110,135 @@
         return `${cleanText(vehicle.make, 100)} ${cleanText(vehicle.model, 150)} ${Number(vehicle.yearStart)}-${Number(vehicle.yearEnd)}`.trim();
     }
 
-    function validateVehiclePayload(payload) {
+    const vehicleMetadataFields = ['generation','bodyType','trim','engineCode','engineLabel','engineDisplacement','cylinders','fuelType','drivetrain'];
+    const enrichmentFieldNames = ['make','model','yearStart','yearEnd',...vehicleMetadataFields];
+    const variantFields = ['engineDisplacement','engineCode','trim','drivetrain','bodyType','generation'];
+    const enrichmentProviders = ['nhtsa','carapi','local_dataset'];
+    const hasValue = value => value !== null && value !== undefined && String(value).trim() !== '';
+    const sameValue = (a,b) => (!hasValue(a) && !hasValue(b)) || String(a).trim() === String(b).trim();
+
+    function normalizeVehicleMetadata(payload) {
+        const result = {};
+        for (const name of vehicleMetadataFields) {
+            if (!hasValue(payload?.[name])) continue;
+            if (name === 'engineDisplacement') {
+                const value = Number(payload[name]);
+                if (!Number.isFinite(value) || value <= 0 || value > 20000) throw new Error('سعة المحرك غير صالحة.');
+                result[name] = value;
+            } else {
+                if (!['string','number'].includes(typeof payload[name]) || String(payload[name]).length > 200) throw new Error('قيمة بيانات السيارة غير صالحة.');
+                result[name] = cleanText(payload[name],200);
+            }
+        }
+        return result;
+    }
+
+    function normalizeEnrichmentProvenance(enrichment) {
+        const fields = {};
+        for (const name of enrichmentFieldNames) {
+            const item = enrichment?.fields?.[name];
+            if (!item || !hasValue(item.appliedBy)) continue;
+            fields[name] = {
+                sources: (Array.isArray(item.sources) ? item.sources : []).filter(source => enrichmentProviders.includes(source)),
+                confidence: Number.isFinite(item.confidence) ? Math.max(0,Math.min(1,item.confidence)) : 0,
+                appliedBy: cleanText(item.appliedBy,200), appliedAt: cleanText(item.appliedAt,80),
+                value: ['string','number'].includes(typeof item.value) ? item.value : null
+            };
+        }
+        return { fields, lastAppliedAt: cleanText(enrichment?.lastAppliedAt,80), lastAppliedBy: cleanText(enrichment?.lastAppliedBy,200) };
+    }
+
+    function trustedVariantField(vehicle,name) {
+        const evidence = vehicle?.enrichment?.fields?.[name];
+        return hasValue(vehicle?.[name]) && hasValue(evidence?.appliedBy) && sameValue(evidence.value,vehicle[name])
+            && Array.isArray(evidence.sources) && evidence.sources.some(source => enrichmentProviders.includes(source));
+    }
+
+    function areVehicleVariants(a,b) {
+        return vehicleKey(a?.make,100) === vehicleKey(b?.make,100) && vehicleKey(a?.model,150) === vehicleKey(b?.model,150)
+            && variantFields.some(name => trustedVariantField(a,name) && trustedVariantField(b,name)
+                && vehicleKey(a[name],200) !== vehicleKey(b[name],200));
+    }
+
+    async function getVehicleFitmentsById(vehicleId) {
+        const snapshot = await db().collection(col('vehicleFitments')).where('vehicleId','==',String(vehicleId)).where('status','==','approved').get();
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    async function applyVehicleEnrichment(vehicleId,selection,metadata = {}) {
+        const { user,profile } = authContext();
+        if (!isOwner() || profile.role !== 'owner') throw new Error('اعتماد الإثراء متاح للمالك فقط.');
+        if (!vehicleId || String(vehicleId).includes('/')) throw new Error('معرف السيارة غير صالح.');
+        const names = Object.keys(selection || {});
+        if (!names.length || names.some(name => !enrichmentFieldNames.includes(name))) throw new Error('حدد حقولًا صالحة للاعتماد.');
+        const database = db(),ref = database.collection(col('vehicles')).doc(String(vehicleId));
+        const initial = await ref.get();
+        if (!initial.exists) throw new Error('السجل غير موجود.');
+        const before = initial.data(),changes = {},provenance = normalizeEnrichmentProvenance(before.enrichment);
+        for (const name of enrichmentFieldNames) {
+            if (!Object.prototype.hasOwnProperty.call(metadata.expected || {},name) || !sameValue(metadata.expected[name],before[name])) throw new Error('تم تعديل بيانات السيارة بعد التحليل. أعد تشغيل الإثراء.');
+        }
+        const appliedAt = new Date().toISOString();
+        for (const name of names) {
+            const item = selection[name];
+            if (!item || !hasValue(item.value) || !['string','number'].includes(typeof item.value)) throw new Error('قيمة غير صالحة للاعتماد.');
+            if (hasValue(before[name]) && !sameValue(before[name],item.value) && item.replace !== true) throw new Error('اختر الاستبدال صراحة للقيمة الحالية: '+name);
+            const sources = (Array.isArray(item.sources) ? item.sources : []).filter(source => enrichmentProviders.includes(source));
+            if (!sources.length || item.partialCoverage === true) throw new Error('المصدر غير مكتمل أو غير معروف.');
+            changes[name] = ['yearStart','yearEnd','engineDisplacement'].includes(name) ? Number(item.value) : cleanText(item.value,200);
+            provenance.fields[name] = { sources, confidence: Number.isFinite(item.confidence) ? Math.max(0,Math.min(1,item.confidence)) : 0, appliedAt, appliedBy: user.uid, value: changes[name] };
+        }
+        const candidate = { ...before,...changes,enrichment: { ...provenance,lastAppliedAt: appliedAt,lastAppliedBy: user.uid } };
+        normalizeVehicleMetadata(candidate);
+        for (const name of ['yearStart','yearEnd']) {
+            if (hasValue(candidate[name]) && (!Number.isInteger(Number(candidate[name])) || Number(candidate[name]) < 1950 || Number(candidate[name]) > 2100)) throw new Error('نطاق السنوات غير صالح.');
+        }
+        let complete = false;
+        if (hasValue(candidate.make) && hasValue(candidate.model) && hasValue(candidate.yearStart) && hasValue(candidate.yearEnd)) {
+            validateVehiclePayload(candidate); complete = true;
+            const conflicts = await checkVehicleConflicts(vehicleId,candidate);
+            if (conflicts.duplicates.length) throw new Error('يوجد سجل مكرر مطابق.');
+            if (conflicts.overlaps.length && (!candidate.hasOverlap || !candidate.overlapReason)) throw new Error('يوجد تداخل غير معتمد. راجع نطاق السنوات والتداخل المقصود أولًا.');
+        }
+        const auditRef = database.collection(col('auditLogs')).doc();
+        await database.runTransaction(async transaction => {
+            const current = await transaction.get(ref);
+            if (!current.exists || enrichmentFieldNames.some(name => !sameValue(current.data()[name],before[name]))
+                || JSON.stringify(normalizeEnrichmentProvenance(current.data().enrichment)) !== JSON.stringify(normalizeEnrichmentProvenance(before.enrichment))
+                || current.data().hasOverlap !== before.hasOverlap || !sameValue(current.data().overlapReason,before.overlapReason)) throw new Error('تم تعديل بيانات السيارة بعد التحليل. أعد تشغيل الإثراء.');
+            const now = firebase.firestore.FieldValue.serverTimestamp();
+            const patch = { ...changes,enrichment: candidate.enrichment,status: complete ? 'approved' : 'incomplete',dataQuality: complete ? 'complete' : 'incomplete',updatedAt: now,updatedBy: user.uid };
+            if (complete) Object.assign(patch,{ identityKey: vehicleIdentityKey(candidate),approvedAt: now,approvedBy: user.uid });
+            transaction.update(ref,patch);
+            transaction.set(makesRef(),{ revision: firebase.firestore.FieldValue.increment(1),dirty: true },{ merge: true });
+            transaction.set(auditRef,{ action: 'vehicle_enrichment_applied',targetId: ref.id,
+                details: { vehicleId: ref.id,appliedFields: names,providers: [...new Set(names.flatMap(name => provenance.fields[name].sources))],
+                    previous: Object.fromEntries(names.map(name => [name,before[name] ?? null])),next: changes },
+                actorUid: user.uid,actorEmail: cleanText(user.email,200),actorRole: 'owner',createdAt: now });
+        });
+        clearPublicVehicleCache();
+        try { await rebuildMakesSummary(); } catch (error) { reportHealth('summary','تم الاعتماد، لكن ملخص الشركات يحتاج إعادة بناء: '+error.message); }
+        return ref.id;
+    }
+
+    function validateVehiclePayload(payload, allowIncomplete = false) {
         const make = cleanText(payload?.make, 100);
         const model = cleanText(payload?.model, 150);
         const arabicMake = cleanText(payload?.arabicMake, 100);
-        const yearStart = Number(payload?.yearStart);
-        const yearEnd = Number(payload?.yearEnd);
+        const yearStart = hasValue(payload?.yearStart) ? Number(payload.yearStart) : null;
+        const yearEnd = hasValue(payload?.yearEnd) ? Number(payload.yearEnd) : null;
 
         if (!make || !model) {
             throw new Error("الشركة والموديل مطلوبان.");
         }
 
-        if (!Number.isInteger(yearStart) || !Number.isInteger(yearEnd)) {
+        if ((!allowIncomplete || (yearStart !== null && yearEnd !== null)) && (!Number.isInteger(yearStart) || !Number.isInteger(yearEnd))) {
             throw new Error("سنة البداية والنهاية يجب أن تكونا أرقامًا صحيحة.");
         }
 
-        if (yearStart < 1950 || yearEnd > 2100 || yearStart > yearEnd) {
+        if ((yearStart !== null && (!Number.isInteger(yearStart) || yearStart < 1950 || yearStart > 2100))
+            || (yearEnd !== null && (!Number.isInteger(yearEnd) || yearEnd < 1950 || yearEnd > 2100))
+            || (yearStart !== null && yearEnd !== null && yearStart > yearEnd)) {
             throw new Error("نطاق السنوات غير صالح.");
         }
 
@@ -138,13 +251,14 @@
                 .slice(0, 20);
 
         return {
+            ...normalizeVehicleMetadata(payload),
             make,
             model,
             arabicMake,
             arabicKeywords,
             yearStart,
             yearEnd,
-            dataQuality: cleanText(payload?.dataQuality || "complete", 30),
+            dataQuality: yearStart !== null && yearEnd !== null ? "complete" : "incomplete",
             hasOverlap: payload?.hasOverlap === true,
             overlapReason: cleanText(payload?.overlapReason, 500)
         };
@@ -464,9 +578,15 @@
 
     async function checkVehicleConflicts(vehicleId, payload) {
         const { profile } = authContext();
-        const vehicle = validateVehiclePayload(payload?.vehicle || payload);
+        const input = payload?.vehicle || payload;
         const currentId = vehicleId ? String(vehicleId) : null;
-        const makeKey = vehicleKey(vehicle.make, 100);
+        let base = {};
+        if (currentId) {
+            const existing = await db().collection(col('vehicles')).doc(currentId).get();
+            if (existing.exists) base = existing.data();
+        }
+        const vehicle = { ...base,...validateVehiclePayload({ ...base,...input }),enrichment: input.enrichment || base.enrichment };
+        const makeKey = vehicleKey(vehicle.make,100);
         const modelKey = vehicleKey(vehicle.model, 150);
 
         // Owner may inspect every stored record. Editors only need published records
@@ -489,6 +609,8 @@
             const otherStart = Number(other.yearStart);
             const otherEnd = Number(other.yearEnd);
             if (!Number.isInteger(otherStart) || !Number.isInteger(otherEnd)) return;
+
+            if (areVehicleVariants(vehicle,other)) return;
 
             const exact =
                 vehicleIdentityKey(other) === wantedIdentity ||
@@ -936,9 +1058,6 @@
 
         const vehicle = validateVehiclePayload(payload?.vehicle || payload);
         const fitments = normalizeFitments(payload?.fitments || []);
-        if (!fitments.length) {
-            throw new Error("أدخل بيانات توافق واحدة على الأقل قبل الحفظ.");
-        }
 
         const conflicts = await checkVehicleConflicts(vehicleId, vehicle);
         if (conflicts.duplicates.length) {
@@ -985,27 +1104,25 @@
             });
         }
 
-        const oldFitments = await database.collection(col("vehicleFitments"))
-            .where("vehicleId", "==", vehicleRef.id)
-            .get();
-        oldFitments.docs.forEach((doc) => batch.delete(doc.ref));
-
-        fitments.forEach((fitment) => {
+        // Omitted/empty fitments never mean deletion; merge only supplied fields.
+        for (const fitment of fitments) {
             const fitRef = database.collection(col("vehicleFitments"))
                 .doc(`${vehicleRef.id}_${fitment.categorySlug}`);
+            const stored = await fitRef.get();
+            const storedData = stored.exists ? stored.data() : {};
             batch.set(fitRef, {
                 vehicleId: vehicleRef.id,
                 categoryId: fitment.categorySlug,
-                fields: fitment.fields,
-                notes: fitment.notes,
+                fields: { ...(storedData.fields || {}),...fitment.fields },
+                notes: fitment.notes ?? storedData.notes ?? null,
                 source: fitment.source,
                 status: "approved",
-                createdAt: now,
-                createdBy: user.uid,
+                createdAt: storedData.createdAt || now,
+                createdBy: storedData.createdBy || user.uid,
                 updatedAt: now,
                 updatedBy: user.uid
-            });
-        });
+            }, { merge: true });
+        }
 
         await commitVehicleBatch(batch);
         await writeAudit("vehicle_saved", vehicleRef.id, { fitmentCount: fitments.length });
@@ -1043,10 +1160,6 @@
                 vehicle: validateVehiclePayload(changeRequest?.payload?.vehicle || {}),
                 fitments: normalizeFitments(changeRequest?.payload?.fitments || [])
             };
-
-        if (payload && !payload.fitments.length) {
-            throw new Error("أدخل بيانات توافق واحدة على الأقل قبل إرسال الطلب.");
-        }
 
         if (payload) {
             const conflicts = await checkVehicleConflicts(changeRequest?.targetVehicleId || null, payload.vehicle);
@@ -1567,12 +1680,14 @@
                         overlapReason: vehicle.overlapReason || ""
                     },
                     vehicle: {
+                        ...normalizeVehicleMetadata(vehicle),
+                        enrichment: normalizeEnrichmentProvenance(vehicle.enrichment),
                         make: vehicle.make || "",
                         model: vehicle.model || "",
                         arabicMake: vehicle.arabicMake || "",
                         arabicKeywords: Array.isArray(vehicle.arabicKeywords) ? vehicle.arabicKeywords : [],
-                        yearStart: Number(vehicle.yearStart),
-                        yearEnd: Number(vehicle.yearEnd),
+                        yearStart: hasValue(vehicle.yearStart) ? Number(vehicle.yearStart) : null,
+                        yearEnd: hasValue(vehicle.yearEnd) ? Number(vehicle.yearEnd) : null,
                         status: "migration_candidate",
                         dataQuality: vehicle.dataQuality || "complete",
                         hasOverlap: vehicle.hasOverlap === true,
@@ -1606,8 +1721,7 @@
         if (!Array.isArray(records)) throw new Error("ملف البيانات غير صالح.");
         const ids = new Set();
         for (const record of records) {
-            validateVehiclePayload(record?.vehicle || {});
-            if (!normalizeFitments(record?.fitments).length) throw new Error("سجل بلا بيانات توافق.");
+            validateVehiclePayload(record?.vehicle || {}, record?.source?.type === "firestore_backup");
             const backup = record?.source?.type === "firestore_backup";
             const row = record?.source?.sourceRow;
             if (!backup && (record?.source?.migrationStatus !== "ready" || !Number.isInteger(row) || row < 2)) {
@@ -1639,13 +1753,15 @@
                 && backupVehicleId
                 && !backupVehicleId.includes("/");
             const vehicleId = canUseBackupId ? backupVehicleId : `legacy_${sourceRow}`;
-            const vehicle = validateVehiclePayload(record?.vehicle || {});
+            const vehicle = validateVehiclePayload(record?.vehicle || {}, record?.source?.type === "firestore_backup");
+            const enrichment = normalizeEnrichmentProvenance(record?.vehicle?.enrichment);
             const vehicleRef = database.collection(col("vehicles")).doc(vehicleId);
 
             batch.set(vehicleRef, {
                 ...vehicle,
                 identityKey: vehicleIdentityKey(vehicle),
-                status: "approved",
+                status: vehicle.dataQuality === "complete" ? "approved" : "incomplete",
+                enrichment,
                 source: record?.source || { type: "legacy_csv", sourceRow },
                 createdAt: now,
                 createdBy: user.uid,
@@ -1732,6 +1848,10 @@
         checkVehicleConflicts,
         listVehicles,
         getVehicleRecord,
+        applyVehicleEnrichment,
+        areVehicleVariants,
+        trustedVariantField,
+        getVehicleFitmentsById,
         saveVehicleRecord,
         deleteVehicleRecord,
         createChangeRequest,

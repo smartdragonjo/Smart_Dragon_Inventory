@@ -463,6 +463,59 @@ const VehicleDataProvider =
         };
     }
 
+    function variantLabels(records) {
+        const priorities = ['engineDisplacement','engineLabel','trim','drivetrain','bodyType','generation'];
+        const format = (record,name) => name === 'engineDisplacement' ? 'محرك ' + record[name] + ' cc'
+            : name === 'engineLabel' ? 'محرك ' + record[name] : name === 'trim' ? 'فئة ' + record[name] : String(record[name]);
+        let labels = records.map(() => '');
+        for (const name of priorities) {
+            if (!records.every(record => api().trustedVariantField(record,name))) continue;
+            const values = records.map(record => format(record,name));
+            if (new Set(values).size <= 1) continue;
+            labels = labels.map((label,index) => label ? label + ' — ' + values[index] : values[index]);
+            if (new Set(labels).size === records.length) return labels;
+        }
+        // engineCode is deliberately private; numbered versions remain distinguishable.
+        return labels.map((label,index) => label + (label ? ' — ' : '') + 'نسخة ' + (index + 1));
+    }
+
+    function canonicalFitment(value) {
+        if (Array.isArray(value)) return value.map(canonicalFitment);
+        if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key,canonicalFitment(value[key])]));
+        return value;
+    }
+
+    async function buildVariantResult(records,year) {
+        const definitions = await api().getPublicCategories();
+        const categories = (definitions.length ? definitions : fallbackCategoryDefinitions()).filter(category => category.active !== false);
+        const fitments = await Promise.all(records.map(record => api().getVehicleFitmentsById(record.id)));
+        const labels = variantLabels(records);
+        const result = buildVehicleResult({ ...records[0],hasOverlap: false,source: {},fitments: [] },year,definitions);
+        result.meta = { hasOverlap: false,blockingWarning: false,warning: null };
+        result.vehicle.yearStart = undefined; result.vehicle.yearEnd = undefined;
+        result.categories = categories.map(category => {
+            const slug = category.slug || category.id,items = [];
+            for (const definition of category.fieldsDefinition || []) {
+                const groups = new Map();
+                records.forEach((record,index) => {
+                    const fitment = fitments[index].find(item => (item.categoryId || item.categorySlug) === slug);
+                    const value = fitment?.fields?.[definition.key];
+                    if (!value || typeof value !== 'object' || !Object.keys(value).length) return;
+                    const displayed = genericFieldValue(value,definition);
+                    if (displayed.value === 'غير متوفر') return;
+                    const key = JSON.stringify(canonicalFitment({ value: displayed.value,hint: displayed.hint || null }));
+                    if (!groups.has(key)) groups.set(key,{ value,indices: [] });
+                    groups.get(key).indices.push(index);
+                });
+                if (!groups.size) { items.push({ label: definition.label || definition.key,value: 'غير متوفر',tone: 'muted',dir: 'rtl' }); continue; }
+                for (const group of groups.values()) items.push({ label: definition.label || definition.key,...genericFieldValue(group.value,definition),
+                    variantLabel: group.indices.length === records.length ? null : group.indices.map(index => labels[index]).join(' / ') });
+            }
+            return { name: category.name || slug,slug,items };
+        }).filter(category => category.items.length);
+        return result;
+    }
+
     return Object.freeze({
 
         async getMakes() {
@@ -500,12 +553,9 @@ const VehicleDataProvider =
             }
 
             if (matches.length > 1) {
-                return overlapResult(
-                    make,
-                    model,
-                    year,
-                    matches
-                );
+                const variants = matches.every((record,index) => matches.slice(index + 1).every(other => api().areVehicleVariants(record,other)));
+                if (variants) return buildVariantResult(matches,year);
+                return overlapResult(make,model,year,matches);
             }
 
             const [record, categoryDefinitions] = await Promise.all([

@@ -69,7 +69,8 @@
             return canonicalVehicleText(item.make) === make &&
                 canonicalVehicleText(item.model) === model &&
                 Number(item.yearStart) === yearStart &&
-                Number(item.yearEnd) === yearEnd;
+                Number(item.yearEnd) === yearEnd &&
+                !SmartDragonFirestore.areVehicleVariants({ ...state.currentVehicle,...vehicle },item);
         }) || null;
     }
 
@@ -118,7 +119,6 @@
 
     function validateFitmentForm() {
         const errors = [];
-        let hasAnyFitment = false;
 
         activeCategories().forEach((category) => {
             categoryFieldDefinitions(category).forEach((field) => {
@@ -126,7 +126,6 @@
                 if (!input) return;
                 const raw = normalizeInputValue(input.value);
                 if (!raw) return;
-                hasAnyFitment = true;
 
                 if (field.type === "number") {
                     const number = Number(raw);
@@ -151,9 +150,6 @@
             });
         });
 
-        if (!hasAnyFitment) {
-            errors.push("أدخل بيانات توافق واحدة على الأقل في أحد الأصناف الفعالة.");
-        }
 
         return errors;
     }
@@ -622,7 +618,18 @@
                 ...state.currentVehicle, id: $("vehicleId").value,
                 make: $("vehicleMake").value, model: $("vehicleModel").value,
                 yearStart: $("vehicleYearStart").value || null, yearEnd: $("vehicleYearEnd").value || null
-            }));
+            }), async () => {
+                const refreshed = await SmartDragonFirestore.getVehicleRecord(vehicleId);
+                if (String($('vehicleId').value) !== String(vehicleId) || $('vehicleModal').hidden) return;
+                state.currentVehicle = refreshed;
+                for (const [name,id] of Object.entries({ make: 'vehicleMake',model: 'vehicleModel',yearStart: 'vehicleYearStart',yearEnd: 'vehicleYearEnd' })) {
+                    $(id).value = refreshed?.[name] ?? '';
+                }
+                // Keep pending fitment/Arabic form edits intact; enrichment only refreshes metadata.
+                await loadVehicles();
+                await loadStats();
+                scheduleVehicleValidation();
+            });
             $("deleteVehicleButton").hidden = !isOwner();
             scheduleVehicleValidation();
         } catch (error) {
@@ -1177,6 +1184,7 @@
     }
 
     const AUDIT_ACTION_LABELS = Object.freeze({
+        vehicle_enrichment_applied: 'اعتماد إثراء السيارة',
         vehicle_saved: "حفظ / نشر سيارة",
         vehicle_deleted: "حذف سيارة",
         change_request_created: "إرسال طلب مراجعة",
@@ -1220,6 +1228,8 @@
         if (details.displayName) parts.push(details.displayName);
         if (details.reason) parts.push(`السبب: ${details.reason}`);
         if (details.recordCount !== undefined) parts.push(`${details.recordCount} سجل`);
+        if (Array.isArray(details.appliedFields)) parts.push(details.appliedFields.join('، '));
+        if (Array.isArray(details.providers)) parts.push(details.providers.join('، '));
         if (details.fitmentCount !== undefined) parts.push(`${details.fitmentCount} توافق`);
         if (details.targetVehicleId) parts.push(`السيارة: ${details.targetVehicleId}`);
         return parts.length ? parts.join(" • ") : "—";

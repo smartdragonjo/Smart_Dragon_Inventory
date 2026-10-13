@@ -233,6 +233,11 @@ function createFitmentRow(item) {
     }
 
 
+    if (item?.variantLabel) {
+        const variant = createElement('small','fitment-row__hint');
+        variant.textContent = String(item.variantLabel);
+        valueWrapper.appendChild(variant);
+    }
     valueWrapper.appendChild(
         valueElement
     );
