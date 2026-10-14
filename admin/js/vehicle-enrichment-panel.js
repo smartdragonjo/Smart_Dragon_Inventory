@@ -23,6 +23,81 @@ function optionValues(option,names) {
     return values;
 }
 
+// Review-only normalization. Never substitute these values into the save payload.
+const verificationLabels = { verified: '✅ مؤكد', needs_review: '⚠ يحتاج مراجعة', conflict: '❌ تعارض', insufficient_evidence: 'ℹ الدليل غير كافٍ' };
+function normalizedVerificationValue(name,value) {
+    const text = String(value ?? '').trim().replace(/\s+/g,' ').toLowerCase();
+    if (name === 'engineDisplacement') {
+        const match = text.match(/^(\d+(?:\.\d+)?)\s*(l|liters?|litres?|لتر|cc|cm3|cm³|سم3|سم³)?$/);
+        if (!match) return null;
+        const cc = Number(match[1]) * (/^(l|liter|litre|لتر)/.test(match[2] || '') ? 1000 : 1);
+        return cc > 0 && cc <= 20000 ? cc : null;
+    }
+    if (name === 'fuelType') {
+        if (['gasoline','petrol','بنزين'].includes(text)) return 'petrol';
+        return text; // Hybrid, PHEV and EV remain distinct.
+    }
+    if (name === 'drivetrain') return ({ 'front wheel drive': 'fwd', 'rear wheel drive': 'rwd', 'all wheel drive': 'awd', 'four wheel drive': '4wd', '4x4': '4wd' })[text] || text;
+    return text;
+}
+function verificationComparison(name,a,b) {
+    const left = normalizedVerificationValue(name,a),right = normalizedVerificationValue(name,b);
+    if (left === null || right === null || left === '' || right === '') return 'unknown';
+    if (left === right) return 'exact';
+    if (name === 'engineDisplacement' && Math.abs(left-right) <= 50) return 'rounded_match';
+    if (name === 'bodyType' && [left,right].every(value => ['suv','crossover suv'].includes(value))) return 'compatible';
+    return 'different';
+}
+function verificationEvidence(field) {
+    const options = [...(field?.alternatives || [])];
+    if (field?.status === 'candidate' && visible(field.value) && !options.some(option => equal(option.value,field.value))) {
+        options.push({ value: field.value,sources: field.sources,confidence: field.confidence,partialCoverage: field.partialCoverage });
+    }
+    return options.filter(option => visible(option.value)).map(option => ({
+        value: option.value,sources: sourceList(option.sources),
+        confidence: Number.isFinite(option.confidence) ? option.confidence : field?.confidence,
+        partialCoverage: field?.partialCoverage === true || option.partialCoverage === true,
+        // Only explicitly scoped evidence can contradict a particular variant.
+        scope: option.variantId && option.market && option.yearBasis && option.modelYear
+            ? JSON.stringify([option.variantId,option.market,option.yearBasis,option.modelYear]) : null
+    }));
+}
+function evaluateVerification(name,value,records,response) {
+    const usable = records.filter(record => record.sources.length && visible(record.value));
+    const matching = usable.filter(record => ['exact','rounded_match','compatible'].includes(verificationComparison(name,value,record.value)));
+    if (!matching.length) return { status: 'insufficient_evidence',reason: 'لا يوجد دليل مرتبط بهذه القيمة' };
+    const comparableConflict = matching.some(a => a.scope && !a.partialCoverage && usable.some(b =>
+        b.scope === a.scope && !b.partialCoverage && a.sources.some(source => !b.sources.includes(source))
+        && verificationComparison(name,a.value,b.value) === 'different'));
+    if (comparableConflict) return { status: 'conflict',reason: 'المصادر تختلف لنفس المتغير والسوق والسنة' };
+    if (matching.some(record => record.partialCoverage)) return { status: 'needs_review',reason: 'تغطية جزئية' };
+    if (matching.some(record => verificationComparison(name,value,record.value) === 'rounded_match')) return { status: 'needs_review',reason: 'تطابق تقريبي في سعة المحرك — rounded_match' };
+    if (matching.some(record => verificationComparison(name,value,record.value) === 'compatible')) return { status: 'needs_review',reason: 'توافق عام في الهيكل؛ لا يثبت المتغير' };
+    // The current contract exposes no origin-independence proof for engine/generation data.
+    // vPIC is direct official evidence for make/model only, bound to the lookup identity.
+    const lookup = name === 'make' ? response.identity.lookupMake : response.identity.lookupModel;
+    if (['make','model'].includes(name) && response.providers.nhtsa?.status === 'matched'
+        && verificationComparison(name,value,lookup) === 'exact'
+        && matching.some(record => record.sources.includes('nhtsa') && verificationComparison(name,value,record.value) === 'exact')) {
+        return { status: 'verified',reason: 'قيمة الهوية مطابقة لدليل NHTSA الرسمي' };
+    }
+    const sources = new Set(matching.flatMap(record => record.sources));
+    return { status: 'needs_review',reason: sources.size === 1 ? 'مصدر واحد فقط' : 'استقلال أصل المصادر غير مثبت' };
+}
+function verificationDisplay(review,records) {
+    const wrap = element('div'); wrap.dataset.verificationStatus = review.status;
+    wrap.append(element('strong',verificationLabels[review.status]),element('small',' — ' + review.reason));
+    const details = element('details'); details.append(element('summary','عرض الأدلة'));
+    for (const record of records) {
+        const confidence = Number.isFinite(record.confidence) ? record.confidence : '—';
+        details.append(element('p',(record.sources.map(source => sourceNames[source]).join('، ') || 'مصدر غير محدد')
+            + ' | القيمة: ' + record.value + ' | الثقة: ' + confidence
+            + ' | تغطية جزئية: ' + (record.partialCoverage ? 'نعم' : 'لا') + ' | السبب: ' + review.reason));
+    }
+    if (!records.length) details.append(element('p','لا توجد أدلة متاحة لهذه القيمة.'));
+    wrap.append(details); return wrap;
+}
+
 export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.SmartDragonVehicleEnrichmentConfig, client = requestSuggestions, onApplied = async () => {} } = {}) {
     if (!host || config?.enabled !== true) return { reset() {},destroy() {} };
     host.hidden = false; host.classList.add('vehicle-enrichment-panel');
@@ -34,11 +109,12 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
     const complete = element('button','اعتماد الاستكمال','admin-secondary-button');
     const reject = element('button','رفض','admin-secondary-button');
     const selected = element('button','اعتماد الحقول المحددة','admin-secondary-button');
-    for (const button of [complete,reject,selected]) { button.type = 'button'; button.disabled = true; actions.append(button); }
+    const verifiedOnly = element('button','اعتماد المؤكد فقط','admin-secondary-button');
+    for (const button of [complete,reject,selected,verifiedOnly]) { button.type = 'button'; button.disabled = true; actions.append(button); }
     host.replaceChildren(title,request,notice,message,output,actions);
     let sequence = 0,active,result,baseline,controls = [],generationRequired = false,applying = false;
     function actionState() {
-        complete.disabled = selected.disabled = !result || !owner() || applying;
+        complete.disabled = selected.disabled = verifiedOnly.disabled = !result || !owner() || applying;
         reject.disabled = !result || applying; request.disabled = applying || Boolean(active);
     }
     function reset() {
@@ -46,8 +122,24 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
         output.replaceChildren(); message.textContent = ''; host.removeAttribute('aria-busy'); actionState();
     }
     reject.addEventListener('click',() => { reset(); message.textContent = 'تم رفض الاقتراحات في الواجهة فقط.'; });
+    verifiedOnly.addEventListener('click',() => {
+        if (!owner() || !result || applying) return;
+        const eligible = controls.filter(control => control.verification.status === 'verified' && !control.choice.disabled);
+        if (!eligible.length) {
+            message.textContent = 'لا توجد قيم مؤكدة بشكل كافٍ للاعتماد التلقائي. راجع الخيارات المتاحة.'; return;
+        }
+        for (const control of controls) control.choice.checked = false;
+        const occupied = new Set();
+        for (const control of eligible) {
+            if (Object.keys(control.values).some(name => occupied.has(name))) continue;
+            control.choice.checked = true;
+            Object.keys(control.values).forEach(name => occupied.add(name));
+        }
+        // Replacement confirmations stay untouched; apply enforces them and stale checks.
+        return apply(false);
+    });
 
-    function addControl(cell,values,evidence,description) {
+    function addControl(cell,values,evidence,description,verification,records) {
         if (!Object.keys(values).length) return;
         const row = element('div',null,'enrichment-review-option');
         const choice = element('input'); choice.type = 'checkbox'; choice.disabled = !owner();
@@ -69,13 +161,16 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
             choice.disabled = true;
             row.append(element('small',partial ? 'تغطية جزئية؛ لا تصلح لاعتماد نطاق إنتاج نهائي.' : 'المصدر غير واضح؛ غير قابل للاعتماد.'));
         }
-        controls.push({ choice,replace,values,evidence }); cell.append(row);
+        row.append(verificationDisplay(verification,records));
+        controls.push({ choice,replace,values,evidence,verification }); cell.append(row);
     }
 
     function renderResponse(r) {
         controls = []; generationRequired = false;
         const grouped = new Set();
         output.append(element('p','هوية البحث: ' + (r.identity.lookupMake || '') + ' / ' + (r.identity.lookupModel || '')));
+        output.append(element('p','السوق الأردني: غير مؤكد'));
+        // This response contract contains no explicit Jordan evidence. Never infer it.
         for (const [source,provider] of Object.entries(r.providers)) output.append(element('p',(sourceNames[source] || source) + ': ' + provider.status));
         for (const ambiguity of r.ambiguities) {
             const options = Array.isArray(ambiguity.options) ? ambiguity.options : [];
@@ -99,12 +194,17 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
                 const confidences = Object.keys(values).map(name => r.fields[name].confidence);
                 const confidence = Number.isFinite(option.confidence) ? option.confidence : Math.min(...confidences);
                 const description = Object.entries(values).map(([name,value]) => labels[name] + ': ' + value).join(' — ');
-                addControl(section,values,{ sources,confidence,partialCoverage },description + ' (' + sources.map(s => sourceNames[s]).join('، ') + ')');
+                // Broad field source unions above remain unchanged for manual approval.
+                // Verification uses explicit option provenance only, never borrows other options.
+                const records = [{ value: description,sources: sourceList(option.sources || option.source),confidence,partialCoverage }];
+                const verification = { status: records[0].sources.length ? 'needs_review' : 'insufficient_evidence',
+                    reason: partialCoverage ? 'تغطية جزئية' : records[0].sources.length === 1 ? 'مصدر واحد فقط — حزمة للمراجعة' : records[0].sources.length ? 'استقلال أصل المصادر غير مثبت' : 'لا يوجد دليل مستقل مرتبط بالحزمة' };
+                addControl(section,values,{ sources,confidence,partialCoverage },description + ' (' + sources.map(s => sourceNames[s]).join('، ') + ')',verification,records);
             }
             output.append(section);
         }
         const wrap = element('div',null,'vehicle-enrichment-table'),table = element('table'),head = element('thead'),heading = element('tr');
-        for (const text of ['الحقل','الحالي','المقترح / البدائل','المصدر','الثقة','الحالة']) heading.append(element('th',text));
+        for (const text of ['الحقل','الحالي','المقترح / البدائل','المصدر','الثقة','الحالة','التحقق']) heading.append(element('th',text));
         head.append(heading); table.append(head); const body = element('tbody');
         for (const name of enrichmentFields) {
             const field = r.fields[name];
@@ -119,12 +219,15 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
                 for (const option of options) addControl(suggested,{ [name]: option.value },{
                     sources: sourceList(option.sources),confidence: Number.isFinite(option.confidence) ? option.confidence : field.confidence,
                     partialCoverage: option.partialCoverage === true
-                },String(option.value));
+                },String(option.value),evaluateVerification(name,option.value,verificationEvidence(field),r),verificationEvidence(field));
             }
             if (!suggested.hasChildNodes()) suggested.append(element('span',field.status === 'manual' ? 'قيمة حالية محمية' : 'غير متوفر'));
+            const verificationCell = element('td');
+            if (grouped.has(name)) verificationCell.append(element('span','راجع تحقق الحزمة أعلاه'));
+            else verificationCell.append(verificationDisplay(evaluateVerification(name,visible(field.value) ? field.value : baseline[name],verificationEvidence(field),r),verificationEvidence(field)));
             row.append(element('td',labels[name]),element('td',baseline[name] ?? '—'),suggested,
                 element('td',field.sources.map(source => sourceNames[source] || source).join('، ') || '—'),element('td',field.confidence),
-                element('td',field.status + (visible(baseline[name]) ? ' — الحالية محمية من الاستبدال التلقائي' : '')));
+                element('td',field.status + (visible(baseline[name]) ? ' — الحالية محمية من الاستبدال التلقائي' : '')),verificationCell);
             body.append(row);
         }
         table.append(body); wrap.append(table); output.append(wrap);
