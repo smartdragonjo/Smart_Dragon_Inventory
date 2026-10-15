@@ -63,6 +63,8 @@ function verificationEvidence(field) {
     }));
 }
 function evaluateVerification(name,value,records,response) {
+    const trusted = globalThis.SmartDragonFirestore.trustedEnrichmentSelection(response)[name];
+    if (trusted && equal(trusted.value,value)) return { status: 'verified',reason: 'مصدر موثوق بثقة 0.80 فأعلى دون تعارض أو تغطية جزئية' };
     const usable = records.filter(record => record.sources.length && visible(record.value));
     const matching = usable.filter(record => ['exact','rounded_match','compatible'].includes(verificationComparison(name,value,record.value)));
     if (!matching.length) return { status: 'insufficient_evidence',reason: 'لا يوجد دليل مرتبط بهذه القيمة' };
@@ -73,16 +75,7 @@ function evaluateVerification(name,value,records,response) {
     if (matching.some(record => record.partialCoverage)) return { status: 'needs_review',reason: 'تغطية جزئية' };
     if (matching.some(record => verificationComparison(name,value,record.value) === 'rounded_match')) return { status: 'needs_review',reason: 'تطابق تقريبي في سعة المحرك — rounded_match' };
     if (matching.some(record => verificationComparison(name,value,record.value) === 'compatible')) return { status: 'needs_review',reason: 'توافق عام في الهيكل؛ لا يثبت المتغير' };
-    // The current contract exposes no origin-independence proof for engine/generation data.
-    // vPIC is direct official evidence for make/model only, bound to the lookup identity.
-    const lookup = name === 'make' ? response.identity.lookupMake : response.identity.lookupModel;
-    if (['make','model'].includes(name) && response.providers.nhtsa?.status === 'matched'
-        && verificationComparison(name,value,lookup) === 'exact'
-        && matching.some(record => record.sources.includes('nhtsa') && verificationComparison(name,value,record.value) === 'exact')) {
-        return { status: 'verified',reason: 'قيمة الهوية مطابقة لدليل NHTSA الرسمي' };
-    }
-    const sources = new Set(matching.flatMap(record => record.sources));
-    return { status: 'needs_review',reason: sources.size === 1 ? 'مصدر واحد فقط' : 'استقلال أصل المصادر غير مثبت' };
+    return { status: 'needs_review',reason: 'لم تتحقق شروط الاعتماد التلقائي للقيمة أو لحزمة السنوات الكاملة' };
 }
 function verificationDisplay(review,records) {
     const wrap = element('div'); wrap.dataset.verificationStatus = review.status;
@@ -103,7 +96,7 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
     host.hidden = false; host.classList.add('vehicle-enrichment-panel');
     const title = element('h3','اقتراحات إثراء بيانات السيارة');
     const request = element('button','اقتراح بيانات السيارة','admin-secondary-button'); request.type = 'button';
-    const notice = element('p','اختر القيم للمراجعة. الاعتماد متاح للمالك، ولا يغيّر بيانات التوافق الموجودة.');
+    const notice = element('p','تُعتمد القيم الموثوقة تلقائيًا بثقة 0.80 فأعلى دون تعارض أو تغطية جزئية. سنوات السجلات ذات التوافقات المعتمدة محمية.');
     const message = element('p'); message.setAttribute('role','status'); message.setAttribute('aria-live','polite');
     const output = element('div'),actions = element('div',null,'admin-panel-actions');
     const complete = element('button','اعتماد الاستكمال','admin-secondary-button');
@@ -122,22 +115,15 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
         output.replaceChildren(); message.textContent = ''; host.removeAttribute('aria-busy'); actionState();
     }
     reject.addEventListener('click',() => { reset(); message.textContent = 'تم رفض الاقتراحات في الواجهة فقط.'; });
-    verifiedOnly.addEventListener('click',() => {
+    verifiedOnly.addEventListener('click',() => applyTrusted());
+    async function applyTrusted() {
         if (!owner() || !result || applying) return;
-        const eligible = controls.filter(control => control.verification.status === 'verified' && !control.choice.disabled);
-        if (!eligible.length) {
-            message.textContent = 'لا توجد قيم مؤكدة بشكل كافٍ للاعتماد التلقائي. راجع الخيارات المتاحة.'; return;
+        const selection = globalThis.SmartDragonFirestore.trustedEnrichmentSelection(result);
+        if (!Object.keys(selection).length) {
+            message.textContent = 'لا توجد قيم موثوقة بثقة 0.80 فأعلى دون تعارض أو تغطية جزئية.'; return;
         }
-        for (const control of controls) control.choice.checked = false;
-        const occupied = new Set();
-        for (const control of eligible) {
-            if (Object.keys(control.values).some(name => occupied.has(name))) continue;
-            control.choice.checked = true;
-            Object.keys(control.values).forEach(name => occupied.add(name));
-        }
-        // Replacement confirmations stay untouched; apply enforces them and stale checks.
-        return apply(false);
-    });
+        return apply(false,selection);
+    }
 
     function addControl(cell,values,evidence,description,verification,records) {
         if (!Object.keys(values).length) return;
@@ -227,7 +213,7 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
             else verificationCell.append(verificationDisplay(evaluateVerification(name,visible(field.value) ? field.value : baseline[name],verificationEvidence(field),r),verificationEvidence(field)));
             row.append(element('td',labels[name]),element('td',baseline[name] ?? '—'),suggested,
                 element('td',field.sources.map(source => sourceNames[source] || source).join('، ') || '—'),element('td',field.confidence),
-                element('td',field.status + (visible(baseline[name]) ? ' — الحالية محمية من الاستبدال التلقائي' : '')),verificationCell);
+                element('td',field.status),verificationCell);
             body.append(row);
         }
         table.append(body); wrap.append(table); output.append(wrap);
@@ -243,18 +229,19 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
             const response = await client(vehicle,{ config,signal: active.signal });
             if (current !== sequence) return;
             result = response; renderResponse(response);
-            message.textContent = 'اقتراحات للمراجعة اليدوية. لا يتم اعتماد أي قيمة تلقائيًا.';
+            message.textContent = 'جاري التحقق من البيانات الموثوقة وحماية نطاقات التوافق...';
+            await applyTrusted();
         } catch (error) { if (current === sequence && error.code !== 'cancelled') message.textContent = messages[error.code] || error.message; }
         finally { if (current === sequence) { active = null; host.removeAttribute('aria-busy'); actionState(); } }
     });
 
-    async function apply(requireCompletion) {
+    async function apply(requireCompletion,automaticSelection = null) {
         if (!owner() || !result || applying) return;
         try {
             const current = getVehicle();
             if (current.id !== baseline.id || enrichmentFields.some(name => !equal(current[name],baseline[name]))) throw new Error('تم تعديل بيانات السيارة بعد التحليل. أعد تشغيل الإثراء.');
-            const selection = {};
-            for (const control of controls.filter(item => item.choice.checked && !item.choice.disabled)) {
+            const selection = automaticSelection || {};
+            for (const control of (automaticSelection ? [] : controls).filter(item => item.choice.checked && !item.choice.disabled)) {
                 if (control.replace && !control.replace.checked) throw new Error('أكد استبدال القيم الحالية صراحةً قبل الاعتماد.');
                 for (const [name,value] of Object.entries(control.values)) selection[name] = { ...control.evidence,value,replace: control.replace?.checked === true };
             }
@@ -263,9 +250,16 @@ export function mountEnrichmentPanel(host,getVehicle,{ config = globalThis.Smart
             const finalIdentity = { ...baseline,...Object.fromEntries(Object.entries(selection).map(([name,item]) => [name,item.value])) };
             if (requireCompletion && (!visible(finalIdentity.make) || !visible(finalIdentity.model) || !['yearStart','yearEnd'].every(name => visible(finalIdentity[name])))) throw new Error('اختر السنوات لإكمال هوية السيارة.');
             applying = true; actionState(); message.textContent = 'جاري اعتماد الحقول المحددة...';
-            await globalThis.SmartDragonFirestore.applyVehicleEnrichment(baseline.id,selection,{ expected: Object.fromEntries(enrichmentFields.map(name => [name,baseline[name]])) });
+            const outcome = await globalThis.SmartDragonFirestore.applyVehicleEnrichment(baseline.id,selection,{
+                autoApply: Boolean(automaticSelection),response: automaticSelection ? result : undefined,
+                expected: Object.fromEntries(enrichmentFields.map(name => [name,baseline[name]])) });
             await onApplied();
-            result = null; controls = []; output.replaceChildren(); message.textContent = 'تم اعتماد البيانات. بيانات التوافق الحالية محفوظة.';
+            const deferred = outcome?.deferredFields?.length || outcome?.unresolved?.length;
+            result = null; controls = []; output.replaceChildren();
+            message.textContent = (outcome?.appliedFields?.length ? 'تم اعتماد بيانات السيارة الآمنة. ' : 'لم تُغيّر البيانات. ')
+                + (deferred ? 'السنوات أو التداخلات غير المحسومة مؤجلة إلى مرحلة Fitment normalization. ' : '')
+                + (outcome?.deactivatedIds?.length ? 'أصبحت السجلات المكررة المثبتة والخالية من التوافقات غير منشورة. ' : '')
+                + 'بيانات التوافق الحالية محفوظة.';
         } catch (error) { message.textContent = error.message || 'تعذر الاعتماد.'; }
         finally { applying = false; actionState(); }
     }

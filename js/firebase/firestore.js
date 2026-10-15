@@ -151,7 +151,60 @@
     function trustedVariantField(vehicle,name) {
         const evidence = vehicle?.enrichment?.fields?.[name];
         return hasValue(vehicle?.[name]) && hasValue(evidence?.appliedBy) && sameValue(evidence.value,vehicle[name])
+            && evidence.confidence >= 0.80 && evidence.partialCoverage !== true
             && Array.isArray(evidence.sources) && evidence.sources.some(source => enrichmentProviders.includes(source));
+    }
+
+    // Only value-bound provider evidence counts; a stored/manual value is not source evidence.
+    function trustedEnrichmentSelection(response) {
+        const records = Object.fromEntries(enrichmentFieldNames.map(name => [name,[]]));
+        const add = (name,item,partial = false) => {
+            if (!item || !hasValue(item.value) || !['string','number'].includes(typeof item.value)) return;
+            const sources = (Array.isArray(item.sources) ? item.sources : []).filter(source => enrichmentProviders.includes(source));
+            if (sources.length) records[name].push({ ...item,sources,partialCoverage: partial || item.partialCoverage === true });
+        };
+        for (const name of enrichmentFieldNames) {
+            const field = response?.fields?.[name];
+            for (const item of field?.alternatives || []) add(name,item,field.partialCoverage === true);
+            if (field?.status === 'candidate') add(name,field);
+        }
+        for (const ambiguity of response?.ambiguities || []) {
+            for (const option of ambiguity.options || []) {
+                for (const name of enrichmentFieldNames) {
+                    const raw = option[name] ?? option.fields?.[name];
+                    if (raw === undefined) continue;
+                    const item = raw && typeof raw === 'object' ? raw : { value: raw };
+                    add(name,{ ...item,sources: item.sources || option.sources || (option.source ? [option.source] : []),
+                        confidence: item.confidence ?? option.confidence },option.partialCoverage === true
+                        || response?.fields?.[name]?.partialCoverage === true || item.partialCoverage === true);
+                }
+            }
+        }
+        const selection = {};
+        for (const name of enrichmentFieldNames) {
+            const full = records[name].filter(item => item.partialCoverage !== true);
+            const item = full.find(record => Number.isFinite(record.confidence) && record.confidence >= 0.80 && record.confidence <= 1);
+            // Unknown variant scopes cannot establish that disagreeing evidence is unrelated.
+            if (!item || full.some(other => vehicleKey(other.value,200) !== vehicleKey(item.value,200))) continue;
+            selection[name] = { value: item.value,sources: item.sources,confidence: item.confidence,partialCoverage: false,replace: true };
+        }
+        // A production range is always adopted as a complete pair from a common provider.
+        if (!selection.yearStart || !selection.yearEnd
+            || !selection.yearStart.sources.some(source => selection.yearEnd.sources.includes(source))) {
+            delete selection.yearStart; delete selection.yearEnd;
+        }
+        return selection;
+    }
+
+    function canonicalVehicle(candidate,other) {
+        const identity = ['make','model','yearStart','yearEnd'];
+        return identity.every(name => trustedVariantField(candidate,name))
+            && ['make','model'].every(name => vehicleKey(candidate[name],200) === vehicleKey(other[name],200))
+            && Number(candidate.yearStart) <= Number(other.yearStart) && Number(candidate.yearEnd) >= Number(other.yearEnd)
+            && variantFields.some(name => trustedVariantField(candidate,name) && trustedVariantField(other,name)
+                && vehicleKey(candidate[name],200) === vehicleKey(other[name],200))
+            && !vehicleMetadataFields.some(name => hasValue(other[name]) && (!trustedVariantField(candidate,name)
+                || !trustedVariantField(other,name) || vehicleKey(candidate[name],200) !== vehicleKey(other[name],200)));
     }
 
     function areVehicleVariants(a,b) {
@@ -174,6 +227,8 @@
         const { user,profile } = authContext();
         if (!isOwner() || profile.role !== 'owner') throw new Error('اعتماد الإثراء متاح للمالك فقط.');
         if (!vehicleId || String(vehicleId).includes('/')) throw new Error('معرف السيارة غير صالح.');
+        const automatic = metadata.autoApply === true;
+        if (automatic) selection = trustedEnrichmentSelection(metadata.response);
         const names = Object.keys(selection || {});
         if (!names.length || names.some(name => !enrichmentFieldNames.includes(name))) throw new Error('حدد حقولًا صالحة للاعتماد.');
         const database = db(),ref = database.collection(col('vehicles')).doc(String(vehicleId));
@@ -183,9 +238,12 @@
         for (const name of enrichmentFieldNames) {
             if (!Object.prototype.hasOwnProperty.call(metadata.expected || {},name) || !sameValue(metadata.expected[name],before[name])) throw new Error('تم تعديل بيانات السيارة بعد التحليل. أعد تشغيل الإثراء.');
         }
+        const currentFitments = await getVehicleFitmentsById(vehicleId);
+        const deferredFields = [],unresolved = [],deactivate = [],observed = [];
         const appliedAt = new Date().toISOString();
         for (const name of names) {
             const item = selection[name];
+            if (['yearStart','yearEnd'].includes(name) && currentFitments.length) { deferredFields.push(name); continue; }
             if (!item || !hasValue(item.value) || !['string','number'].includes(typeof item.value)) throw new Error('قيمة غير صالحة للاعتماد.');
             if (hasValue(before[name]) && !sameValue(before[name],item.value) && item.replace !== true) throw new Error('اختر الاستبدال صراحة للقيمة الحالية: '+name);
             const sources = (Array.isArray(item.sources) ? item.sources : []).filter(source => enrichmentProviders.includes(source));
@@ -193,7 +251,7 @@
             changes[name] = ['yearStart','yearEnd','engineDisplacement'].includes(name) ? Number(item.value) : cleanText(item.value,200);
             provenance.fields[name] = { sources, confidence: Number.isFinite(item.confidence) ? Math.max(0,Math.min(1,item.confidence)) : 0, appliedAt, appliedBy: user.uid, value: changes[name] };
         }
-        const candidate = { ...before,...changes,enrichment: { ...provenance,lastAppliedAt: appliedAt,lastAppliedBy: user.uid } };
+        let candidate = { ...before,...changes,enrichment: { ...provenance,lastAppliedAt: appliedAt,lastAppliedBy: user.uid } };
         normalizeVehicleMetadata(candidate);
         for (const name of ['yearStart','yearEnd']) {
             if (hasValue(candidate[name]) && (!Number.isInteger(Number(candidate[name])) || Number(candidate[name]) < 1950 || Number(candidate[name]) > 2100)) throw new Error('نطاق السنوات غير صالح.');
@@ -202,28 +260,79 @@
         if (hasValue(candidate.make) && hasValue(candidate.model) && hasValue(candidate.yearStart) && hasValue(candidate.yearEnd)) {
             validateVehiclePayload(candidate); complete = true;
             const conflicts = await checkVehicleConflicts(vehicleId,candidate);
-            if (conflicts.duplicates.length) throw new Error('يوجد سجل مكرر مطابق.');
-            if (conflicts.overlaps.length) throw new Error(unexplainedOverlapMessage(conflicts.overlaps));
+            const peers = [...conflicts.duplicates,...conflicts.overlaps];
+            for (const peer of peers) {
+                const peerRef = database.collection(col('vehicles')).doc(peer.id);
+                const snapshot = await peerRef.get();
+                if (!snapshot.exists) throw new Error('تغير السجل المتداخل. أعد تشغيل الإثراء.');
+                const other = snapshot.data();
+                observed.push({ ref: peerRef,data: other });
+                // Already unpublished records need no automatic status change.
+                if (other.status !== 'approved') continue;
+                const fitments = await getVehicleFitmentsById(peer.id);
+                if (automatic && !currentFitments.length && !fitments.length && canonicalVehicle(candidate,other)) {
+                    deactivate.push(peerRef);
+                } else unresolved.push(peer.id);
+            }
+            if (unresolved.length) {
+                // Metadata can advance independently; publication and production ranges cannot.
+                for (const name of ['yearStart','yearEnd']) {
+                    if (Object.hasOwn(changes,name)) {
+                        deferredFields.push(name); delete changes[name];
+                        if (before.enrichment?.fields?.[name]) provenance.fields[name] = before.enrichment.fields[name];
+                        else delete provenance.fields[name];
+                    }
+                }
+                candidate = { ...before,...changes,enrichment: { ...provenance,lastAppliedAt: appliedAt,lastAppliedBy: user.uid } };
+                deactivate.length = 0;
+                complete = hasValue(candidate.yearStart) && hasValue(candidate.yearEnd);
+            }
         }
+        const appliedFields = Object.keys(changes);
+        const outcome = { id: ref.id,appliedFields,deferredFields: [...new Set(deferredFields)],unresolved,
+            deactivatedIds: deactivate.map(item => item.id) };
+        if (!appliedFields.length) return outcome;
         const auditRef = database.collection(col('auditLogs')).doc();
         await database.runTransaction(async transaction => {
             const current = await transaction.get(ref);
             if (!current.exists || enrichmentFieldNames.some(name => !sameValue(current.data()[name],before[name]))
+                || current.data().status !== before.status
                 || JSON.stringify(normalizeEnrichmentProvenance(current.data().enrichment)) !== JSON.stringify(normalizeEnrichmentProvenance(before.enrichment))
                 || current.data().hasOverlap !== before.hasOverlap || !sameValue(current.data().overlapReason,before.overlapReason)) throw new Error('تم تعديل بيانات السيارة بعد التحليل. أعد تشغيل الإثراء.');
+            for (const peer of observed) {
+                const latest = await transaction.get(peer.ref);
+                if (!latest.exists || JSON.stringify(latest.data()) !== JSON.stringify(peer.data)) throw new Error('تغير السجل المتداخل. أعد تشغيل الإثراء.');
+            }
+            if (complete) {
+                const latestConflicts = await checkVehicleConflicts(vehicleId,candidate);
+                if ([...latestConflicts.duplicates,...latestConflicts.overlaps].some(peer => !observed.some(item => item.ref.id === peer.id))) {
+                    throw new Error('ظهر سجل متداخل جديد. أعد تشغيل الإثراء.');
+                }
+            }
+            // Recheck approved fitments on every transaction retry, before any write.
+            const latestCurrentFitments = await getVehicleFitmentsById(vehicleId);
+            if (['yearStart','yearEnd'].some(name => Object.hasOwn(changes,name) && !sameValue(changes[name],before[name]))
+                && latestCurrentFitments.length) throw new Error('تغيرت بيانات التوافق؛ السنوات مؤجلة إلى مرحلة Fitment normalization. أعد تشغيل الإثراء.');
+            for (const peerRef of deactivate) {
+                if (latestCurrentFitments.length || (await getVehicleFitmentsById(peerRef.id)).length) throw new Error('ظهرت بيانات توافق؛ حل التداخل مؤجل إلى مرحلة Fitment normalization.');
+            }
             const now = firebase.firestore.FieldValue.serverTimestamp();
-            const patch = { ...changes,enrichment: candidate.enrichment,status: complete ? 'approved' : 'incomplete',dataQuality: complete ? 'complete' : 'incomplete',updatedAt: now,updatedBy: user.uid };
-            if (complete) Object.assign(patch,{ identityKey: vehicleIdentityKey(candidate),approvedAt: now,approvedBy: user.uid,hasOverlap: false,overlapReason: '' });
+            const patch = { ...changes,enrichment: candidate.enrichment,status: unresolved.length ? before.status : complete ? 'approved' : 'incomplete',dataQuality: complete ? 'complete' : 'incomplete',updatedAt: now,updatedBy: user.uid };
+            if (complete) Object.assign(patch,{ identityKey: vehicleIdentityKey(candidate),hasOverlap: unresolved.length > 0,
+                overlapReason: unresolved.length ? 'مؤجل إلى مرحلة Fitment normalization: ' + unresolved.join(', ') : '' });
+            if (complete && !unresolved.length) Object.assign(patch,{ approvedAt: now,approvedBy: user.uid });
+            for (const peerRef of deactivate) transaction.update(peerRef,{ status: 'incomplete',updatedAt: now,updatedBy: user.uid });
             transaction.update(ref,patch);
             transaction.set(makesRef(),{ revision: firebase.firestore.FieldValue.increment(1),dirty: true },{ merge: true });
             transaction.set(auditRef,{ action: 'vehicle_enrichment_applied',targetId: ref.id,
-                details: { vehicleId: ref.id,appliedFields: names,providers: [...new Set(names.flatMap(name => provenance.fields[name].sources))],
-                    previous: Object.fromEntries(names.map(name => [name,before[name] ?? null])),next: changes },
+                details: { vehicleId: ref.id,appliedFields,providers: [...new Set(appliedFields.flatMap(name => provenance.fields[name].sources))],
+                    previous: Object.fromEntries(appliedFields.map(name => [name,before[name] ?? null])),next: changes,
+                    deferredFields: outcome.deferredFields,unresolved,deactivatedIds: outcome.deactivatedIds },
                 actorUid: user.uid,actorEmail: cleanText(user.email,200),actorRole: 'owner',createdAt: now });
         });
         clearPublicVehicleCache();
         try { await rebuildMakesSummary(); } catch (error) { reportHealth('summary','تم الاعتماد، لكن ملخص الشركات يحتاج إعادة بناء: '+error.message); }
-        return ref.id;
+        return outcome;
     }
 
     function validateVehiclePayload(payload, allowIncomplete = false) {
@@ -1833,6 +1942,7 @@
         listVehicles,
         getVehicleRecord,
         applyVehicleEnrichment,
+        trustedEnrichmentSelection,
         areVehicleVariants,
         trustedVariantField,
         getVehicleFitmentsById,
